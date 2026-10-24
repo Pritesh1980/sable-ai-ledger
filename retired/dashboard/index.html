@@ -1,0 +1,1206 @@
+<style>
+.au { font-family: var(--font-anthropic-sans); color: var(--color-fg); display: grid; gap: var(--cds-gap-lg); }
+.au-head { display: grid; gap: var(--cds-gap-xs); }
+.au-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.au-take { color: var(--color-fg-muted); margin: 0; max-width: 72ch; }
+.au-take span { color: var(--color-fg); font-variant-numeric: tabular-nums; }
+.au-tabs { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); border-bottom: 1px solid var(--color-border-line); }
+.au-tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: var(--cds-pad-xs) var(--cds-pad-sm); font: inherit; color: var(--color-fg-muted); cursor: pointer; }
+.au-tab:hover { color: var(--color-fg); }
+.au-tab[aria-selected="true"] { color: var(--color-fg); border-bottom-color: var(--color-fg); }
+.au-tab:focus-visible, .au-table th button:focus-visible, .au-search:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+.au-page { display: grid; gap: var(--cds-gap-md); }
+.au-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); }
+.au-kpi { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); display: grid; gap: var(--cds-gap-xs); align-content: start; min-width: 0; }
+.au-kpi-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.au-kpi-value { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.au-kpi-note { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.au-kpi-note span { font-variant-numeric: tabular-nums; }
+.au-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+.au-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); align-content: start; min-width: 0; }
+.au-card.wide { grid-column: 1 / -1; }
+.au-card h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.au-note { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; max-width: 80ch; }
+.au-chart { position: relative; min-height: 240px; }
+.au-chart.short { min-height: 180px; }
+.au-chart svg { display: block; overflow: visible; }
+.au-axis text { fill: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.au-axis path, .au-axis line { stroke: var(--cds-chart-axis); }
+.au-gridlines line { stroke: var(--cds-chart-grid); stroke-width: 1; }
+.au-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); min-height: 1rem; }
+.au-swatch { display: inline-block; width: .6rem; height: .6rem; border-radius: 2px; margin-right: .35rem; vertical-align: baseline; flex: none; }
+.au-tip { position: absolute; z-index: 2; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); display: grid; gap: 2px; min-width: 9rem; max-width: 18rem; }
+.au-tip-title { color: var(--cds-text-secondary); }
+.au-tip-row { display: flex; align-items: center; gap: var(--cds-gap-xs); }
+.au-tip-val { margin-left: auto; padding-left: var(--cds-pad-sm); font-variant-numeric: tabular-nums; }
+.au-table-wrap { overflow: auto; max-height: 30rem; }
+.au-table-wrap.tall { max-height: 40rem; }
+.au-table { border-collapse: collapse; width: 100%; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.au-table th { position: sticky; top: 0; z-index: 1; background: var(--color-panel); text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); border-bottom: 1px solid var(--color-border-line); padding: var(--cds-pad-xs) var(--cds-pad-sm); white-space: nowrap; vertical-align: bottom; }
+.au-table th button { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.au-table th[aria-sort="ascending"] button::after { content: " ↑"; }
+.au-table th[aria-sort="descending"] button::after { content: " ↓"; }
+.au-table td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.au-table .num { text-align: right; }
+.au-table td.title { white-space: normal; min-width: 14rem; max-width: 28rem; }
+.au-table td.title a { color: inherit; }
+.au-table tbody tr:hover td { background: var(--cds-surface-popover); }
+.au-table .rowhead { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.au-cell-n { color: var(--color-fg-muted); margin-left: .35rem; }
+.au-barcell { display: inline-flex; align-items: center; gap: .4rem; justify-content: flex-end; }
+.au-bar { display: inline-block; height: .45rem; border-radius: 4px; background: var(--cds-chart-muted); }
+.au-search { font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); width: min(100%, 20rem); }
+.au-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: inherit; height: 100%; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.au-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+.au-defs { display: grid; gap: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0; }
+.au-defs dt { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.au-defs dd { margin: 0 0 var(--cds-gap-xs); max-width: 80ch; }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+@media (max-width: 720px) { .au-table .opt { display: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .au-page:not([hidden]) { animation: au-in var(--cds-dur-slow) var(--cds-ease-out); }
+  @keyframes au-in { from { opacity: .4; } to { opacity: 1; } }
+}
+</style>
+
+<div class="au" id="au">
+  <header class="au-head" id="top">
+    <h1>Sable AI usage</h1>
+    <p class="au-take" id="takeaway">In the 7 days to <span class="dash-skeleton" data-source="week" data-field="end_day" data-row="0">—</span>, Claude work came to <span class="dash-skeleton" data-source="week" data-field="cost_7d" data-row="0">—</span> at API prices. Cache reads were <span class="dash-skeleton" data-source="cost_mix" data-where="kind=Cache reads" data-field="share">—</span> of all Claude cost, and the median shipped task cost <span class="dash-skeleton" data-source="task_kpis" data-field="median_task_cost" data-row="0">—</span>.</p>
+  </header>
+
+  <nav class="au-tabs" role="tablist" aria-label="Dashboard pages">
+    <button class="au-tab" role="tab" id="tab-overview" aria-controls="overview" aria-selected="true" data-tab="overview">Overview</button>
+    <button class="au-tab" role="tab" id="tab-models" aria-controls="models" aria-selected="false" data-tab="models">Models</button>
+    <button class="au-tab" role="tab" id="tab-tasks" aria-controls="tasks" aria-selected="false" data-tab="tasks">Tasks</button>
+    <button class="au-tab" role="tab" id="tab-cache" aria-controls="cache" aria-selected="false" data-tab="cache">Cache and context</button>
+    <button class="au-tab" role="tab" id="tab-history" aria-controls="history" aria-selected="false" data-tab="history">History</button>
+    <button class="au-tab" role="tab" id="tab-method" aria-controls="method" aria-selected="false" data-tab="method">How it's measured</button>
+  </nav>
+
+  <section class="au-page" id="overview" role="tabpanel" aria-labelledby="tab-overview">
+    <div class="au-kpis">
+      <div class="au-kpi" id="kpi-cost">
+        <span class="au-kpi-label">Claude cost, last 7 days</span>
+        <span class="au-kpi-value dash-skeleton" data-source="week" data-field="cost_7d" data-row="0">—</span>
+        <span class="au-kpi-note"><span data-source="week" data-field="cost_change" data-row="0">—</span> on the 7 days before</span>
+      </div>
+      <div class="au-kpi" id="kpi-task">
+        <span class="au-kpi-label">Median shipped task</span>
+        <span class="au-kpi-value dash-skeleton" data-source="task_kpis" data-field="median_task_cost" data-row="0">—</span>
+        <span class="au-kpi-note">Claude cost, across <span data-source="task_kpis" data-field="shipped_tasks" data-row="0">—</span> shipped tasks</span>
+      </div>
+      <div class="au-kpi" id="kpi-ci">
+        <span class="au-kpi-label">CI passed first time</span>
+        <span class="au-kpi-value dash-skeleton" data-source="task_kpis" data-field="first_pass_rate" data-row="0">—</span>
+        <span class="au-kpi-note">Of <span data-source="task_kpis" data-field="ci_tasks" data-row="0">—</span> tasks that ran CI</span>
+      </div>
+      <div class="au-kpi" id="kpi-reuse">
+        <span class="au-kpi-label">Cache reuse, last 7 days</span>
+        <span class="au-kpi-value dash-skeleton" data-source="week" data-field="reuse_7d" data-row="0">—</span>
+        <span class="au-kpi-note">Reads per cached token written; <span data-source="week" data-field="reuse_prev" data-row="0">—</span> the week before</span>
+      </div>
+      <div class="au-kpi" id="kpi-context">
+        <span class="au-kpi-label">Context per reply, last 7 days</span>
+        <span class="au-kpi-value dash-skeleton" data-source="week" data-field="context_7d" data-row="0">—</span>
+        <span class="au-kpi-note">Tokens read for each reply; <span data-source="week" data-field="context_prev" data-row="0">—</span> the week before</span>
+      </div>
+      <div class="au-kpi" id="kpi-tied">
+        <span class="au-kpi-label">Claude cost tied to a task</span>
+        <span class="au-kpi-value dash-skeleton" data-source="task_kpis" data-field="attributed_share" data-row="0">—</span>
+        <span class="au-kpi-note">The rest is planning, questions and housekeeping</span>
+      </div>
+    </div>
+    <div class="au-grid">
+      <article class="au-card wide" id="card-daily-cost">
+        <h2>Claude cost per day, by model</h2>
+        <p class="au-note">API-equivalent cost: what these tokens would cost on the Claude API at list prices. On a Max plan this measures value used, not money spent. Last 5 weeks.</p>
+        <div class="au-legend" id="legend-daily-cost" data-source="daily"></div>
+        <div class="au-chart" id="chart-daily-cost" data-source="daily"></div>
+      </article>
+      <article class="au-card" id="card-cost-mix">
+        <h2>Where the cost goes</h2>
+        <p class="au-note">Each reply re-reads the whole conversation from the cache. At a small fraction of the input price per token, those reads still add up. All logged days.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-mix" data-source="cost_mix" data-row-key="kind">
+            <thead><tr><th data-field="kind">Kind of token</th><th data-field="cost" class="num">Cost</th><th data-field="share" class="num">Share</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="au-card" id="card-top-tasks">
+        <h2>Costliest tasks</h2>
+        <p class="au-note">Claude API-equivalent cost per task. The Tasks page has all of them.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-top" data-source="tasks" data-row-key="task">
+            <thead><tr><th data-field="task">Task</th><th data-field="title">Title</th><th data-field="primary_model" class="opt">Mostly</th><th data-field="cost_usd" class="num">Cost</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="au-page" id="models" role="tabpanel" aria-labelledby="tab-models" hidden>
+    <div class="au-grid">
+      <article class="au-card wide" id="card-models">
+        <h2>Models side by side</h2>
+        <p class="au-note">Token and cache columns cover every reply or call a model made. Task columns cover the tasks where it wrote most of the output, which is what "led" means. Codex has no list prices here, so compare it on tokens. Check how many tasks a model led before trusting its medians.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-models" data-source="models" data-row-key="model">
+            <thead><tr>
+              <th data-field="model"><button type="button">Model</button></th>
+              <th data-field="tool" class="opt"><button type="button">Tool</button></th>
+              <th data-field="replies" class="num"><button type="button">Replies</button></th>
+              <th data-field="output" class="num"><button type="button">Output</button></th>
+              <th data-field="thinking_share" class="num opt"><button type="button">Thinking</button></th>
+              <th data-field="hit_rate" class="num opt"><button type="button">Cache hit</button></th>
+              <th data-field="reuse" class="num"><button type="button">Reuse</button></th>
+              <th data-field="avg_context" class="num opt"><button type="button">Context</button></th>
+              <th data-field="cost_usd" class="num"><button type="button">Cost</button></th>
+              <th data-field="tasks_led" class="num"><button type="button">Tasks led</button></th>
+              <th data-field="median_task_cost" class="num"><button type="button">Cost / task</button></th>
+              <th data-field="median_task_tokens" class="num opt"><button type="button">Tokens / task</button></th>
+              <th data-field="median_prompts" class="num opt"><button type="button">Prompts / task</button></th>
+              <th data-field="first_pass_rate" class="num opt"><button type="button">CI first try</button></th>
+              <th data-field="rework_rate" class="num opt"><button type="button">Reworked</button></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="au-card wide" id="card-by-type">
+        <h2>Median task cost by kind of work</h2>
+        <p class="au-note">Comparing within one kind of task is fairer, because harder work tends to go to the bigger model. Each cell shows the median Claude cost, or tokens for Codex, and how many tasks it covers.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-by-type"><thead></thead><tbody></tbody></table>
+        </div>
+      </article>
+      <article class="au-card" id="card-tools">
+        <h2>Output tokens per day, by tool</h2>
+        <p class="au-note">Includes thinking and reasoning tokens. Last 5 weeks.</p>
+        <div class="au-legend" id="legend-tools" data-source="daily"></div>
+        <div class="au-chart" id="chart-tools" data-source="daily"></div>
+      </article>
+      <article class="au-card" id="card-codex">
+        <h2>Codex by role</h2>
+        <p class="au-note">Agent: Codex doing the work. Review: cross-model reviews run from Claude with codex exec. Auto-review: Codex Desktop checking its own actions before running them.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-codex" data-source="codex_roles" data-row-key="role">
+            <thead><tr><th data-field="role">Role</th><th data-field="calls" class="num">Calls</th><th data-field="tokens" class="num">Tokens</th><th data-field="output" class="num">Output</th><th data-field="share" class="num">Share</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="au-page" id="tasks" role="tabpanel" aria-labelledby="tab-tasks" hidden>
+    <div class="au-grid">
+      <article class="au-card wide" id="card-scatter">
+        <h2>Tokens against size of change</h2>
+        <p class="au-note">One dot per task with a known diff size, coloured by the model that wrote most of it. Both axes are logarithmic, and tokens include Codex. Dots high above the rest cost a lot for the code they changed.</p>
+        <div class="au-legend" id="legend-scatter" data-source="tasks"></div>
+        <div class="au-chart" id="chart-scatter" data-source="tasks"></div>
+      </article>
+      <article class="au-card wide" id="card-tasks">
+        <h2>All tasks</h2>
+        <p class="au-note">Red runs include the failing tests TDD writes on purpose. Rework counts later fix commits to the same source files within 14 days. Select a heading to sort.</p>
+        <input type="search" id="task-search" class="au-search" placeholder="Search tasks" aria-label="Search tasks">
+        <div class="au-table-wrap tall">
+          <table class="au-table" id="tbl-tasks" data-source="tasks" data-row-key="task">
+            <thead><tr>
+              <th data-field="task"><button type="button">Task</button></th>
+              <th data-field="title"><button type="button">Title</button></th>
+              <th data-field="type" class="opt"><button type="button">Type</button></th>
+              <th data-field="size" class="opt"><button type="button">Size</button></th>
+              <th data-field="primary_model"><button type="button">Mostly</button></th>
+              <th data-field="cost_usd" class="num"><button type="button">Claude cost</button></th>
+              <th data-field="prompts" class="num"><button type="button">Prompts</button></th>
+              <th data-field="replies" class="num opt"><button type="button">Replies</button></th>
+              <th data-field="test_runs" class="num opt"><button type="button">Test runs</button></th>
+              <th data-field="test_failures" class="num opt"><button type="button">Red runs</button></th>
+              <th data-field="ci_cycles" class="num opt"><button type="button">CI cycles</button></th>
+              <th data-field="ci_first_pass" class="opt"><button type="button">CI first try</button></th>
+              <th data-field="review_runs" class="num opt"><button type="button">Reviews</button></th>
+              <th data-field="rework" class="num opt"><button type="button">Rework</button></th>
+              <th data-field="active_minutes" class="num opt"><button type="button">Active min</button></th>
+              <th data-field="shipped" class="opt"><button type="button">Shipped</button></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="au-page" id="cache" role="tabpanel" aria-labelledby="tab-cache" hidden>
+    <div class="au-grid">
+      <article class="au-card" id="card-context">
+        <h2>Context per reply</h2>
+        <p class="au-note">Average tokens each main-thread reply read. Lower means leaner sessions. Last 5 weeks.</p>
+        <div class="au-chart short" id="chart-context" data-source="context_daily"></div>
+      </article>
+      <article class="au-card" id="card-reuse">
+        <h2>Cache reuse</h2>
+        <p class="au-note">Cached tokens read per token written. Higher means each write paid for itself more times.</p>
+        <div class="au-chart short" id="chart-reuse" data-source="context_daily"></div>
+      </article>
+      <article class="au-card" id="card-rebuilds">
+        <h2>Cache rebuilds</h2>
+        <p class="au-note">Replies that had to write most of their context again, usually after a break longer than the cache lasts or a compaction.</p>
+        <div class="au-chart short" id="chart-rebuilds" data-source="context_daily"></div>
+      </article>
+      <article class="au-card wide" id="card-sessions">
+        <h2>Claude Code sessions</h2>
+        <p class="au-note">Your sessions run long, so session length matters: the context column is what every reply in it paid to re-read.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-sessions" data-source="sessions" data-row-key="session">
+            <thead><tr>
+              <th data-field="session"><button type="button">Session</button></th>
+              <th data-field="title"><button type="button">Title</button></th>
+              <th data-field="started" class="opt"><button type="button">Started</button></th>
+              <th data-field="replies" class="num"><button type="button">Replies</button></th>
+              <th data-field="subagent_replies" class="num opt"><button type="button">Subagent</button></th>
+              <th data-field="prompts" class="num opt"><button type="button">Prompts</button></th>
+              <th data-field="compactions" class="num opt"><button type="button">Compactions</button></th>
+              <th data-field="rebuilds" class="num opt"><button type="button">Rebuilds</button></th>
+              <th data-field="peak_context" class="num opt"><button type="button">Peak context</button></th>
+              <th data-field="avg_context" class="num"><button type="button">Avg context</button></th>
+              <th data-field="cost_usd" class="num"><button type="button">Cost</button></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="au-page" id="history" role="tabpanel" aria-labelledby="tab-history" hidden>
+    <div class="au-grid">
+      <article class="au-card wide" id="card-history">
+        <h2>Tokens per month, by tool</h2>
+        <p class="au-note">Every token each tool read or wrote, from the per-call logs. Codex logs go back to June. Claude Code deleted its own logs after 30 days until 21 October, when that became a year, so it appears only from late September.</p>
+        <div class="au-legend" id="legend-history" data-source="monthly"></div>
+        <div class="au-chart" id="chart-history" data-source="monthly"></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="au-page" id="method" role="tabpanel" aria-labelledby="tab-method" hidden>
+    <div class="au-grid">
+      <article class="au-card" id="card-defs">
+        <h2>Definitions</h2>
+        <dl class="au-defs">
+          <dt>Task</dt><dd>A GitHub PR. Work committed straight to main is grouped by the issue its commit names, or else counts as its own task. A Codex branch that never became a PR is a task named after the branch.</dd>
+          <dt>Tied to a task</dt><dd>Replies on a feature branch belong to that branch's PR. Replies on main belong to the next commit or PR command in the same session within 4 hours, or the one just before within 30 minutes.</dd>
+          <dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads and output, which includes thinking.</dd>
+          <dt>Led</dt><dd>The model that wrote most of a task's output tokens, across Claude Code and Codex agent work.</dd>
+          <dt>CI cycle</dt><dd>One commit that CI ran on. A task passed first time when its first cycle passed.</dd>
+          <dt>Rework</dt><dd>Later fix commits on main, within 14 days, that touch the same source files. A rough signal, not a verdict.</dd>
+          <dt>Cache rebuild</dt><dd>A main-thread reply, not a session's first, that wrote at least 50,000 tokens and at least half its context to the cache.</dd>
+        </dl>
+      </article>
+      <article class="au-card" id="card-prices">
+        <h2>Price table used</h2>
+        <p class="au-note">US dollars per million tokens, as of <span data-source="prices" data-field="as_of" data-row="0">—</span>.</p>
+        <div class="au-table-wrap">
+          <table class="au-table" id="tbl-prices" data-source="prices" data-row-key="model">
+            <thead><tr><th data-field="model">Model</th><th data-field="input" class="num">Input</th><th data-field="output" class="num">Output</th><th data-field="cache_read" class="num">Cache read</th><th data-field="cache_write_5m" class="num opt">Write 5 min</th><th data-field="cache_write_1h" class="num opt">Write 1 hour</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+</div>
+
+<script>
+const median = (xs) => {
+  const s = xs.filter((x) => x != null).sort((a, b) => a - b);
+  const n = s.length;
+  return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+};
+
+dash.calc('week', {
+  title: 'Last 7 days vs the 7 before',
+  description: 'Claude Code totals for the latest 7 logged days and the 7 days before them.',
+  inputs: ['daily'],
+  fn: (daily) => {
+    const rows = daily.filter((r) => r.tool === 'Claude Code');
+    const end = rows.reduce((m, r) => (r.day > m ? r.day : m), '');
+    const n = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
+    const sum = (lo, hi) => {
+      const t = { cost: 0, replies: 0, input: 0, write: 0, read: 0 };
+      for (const r of rows) {
+        const age = n(end) - n(r.day);
+        if (age < lo || age >= hi) continue;
+        t.cost += r.cost_usd || 0;
+        t.replies += r.replies;
+        t.input += r.input;
+        t.write += r.cw5 + r.cw1h;
+        t.read += r.cache_read;
+      }
+      return t;
+    };
+    const a = sum(0, 7);
+    const b = sum(7, 14);
+    const ctx = (t) => (t.replies ? Math.round((t.input + t.write + t.read) / t.replies) : null);
+    const reuse = (t) => (t.write ? Math.round((t.read / t.write) * 10) / 10 : null);
+    return [{
+      end_day: end,
+      cost_7d: Math.round(a.cost * 100) / 100,
+      cost_prev: Math.round(b.cost * 100) / 100,
+      cost_change: b.cost ? Math.round((a.cost / b.cost - 1) * 100) / 100 : null,
+      replies_7d: a.replies,
+      reuse_7d: reuse(a),
+      reuse_prev: reuse(b),
+      context_7d: ctx(a),
+      context_prev: ctx(b),
+    }];
+  },
+});
+
+dash.calc('task_kpis', {
+  title: 'Shipped task figures',
+  description: 'Median Claude cost of a shipped task, the share of tasks whose first CI run passed, and the share of Claude cost tied to a task.',
+  inputs: ['tasks', 'daily'],
+  fn: (tasks, daily) => {
+    const shipped = tasks.filter((t) => t.shipped && t.cost_usd > 0).map((t) => t.cost_usd).sort((a, b) => a - b);
+    const k = shipped.length;
+    const mid = k ? (k % 2 ? shipped[(k - 1) / 2] : (shipped[k / 2 - 1] + shipped[k / 2]) / 2) : null;
+    const ci = tasks.filter((t) => t.ci_first_pass === true || t.ci_first_pass === false);
+    const claude = daily.filter((r) => r.tool === 'Claude Code');
+    const total = claude.reduce((s, r) => s + (r.cost_usd || 0), 0);
+    const tied = claude.filter((r) => r.attributed).reduce((s, r) => s + (r.cost_usd || 0), 0);
+    return [{
+      median_task_cost: mid == null ? null : Math.round(mid * 100) / 100,
+      shipped_tasks: k,
+      ci_tasks: ci.length,
+      first_pass_rate: ci.length ? Math.round((ci.filter((t) => t.ci_first_pass).length / ci.length) * 100) / 100 : null,
+      attributed_share: total ? Math.round((tied / total) * 100) / 100 : null,
+    }];
+  },
+});
+
+dash.calc('cost_mix', {
+  title: 'Where Claude cost goes',
+  description: 'API-equivalent cost of each kind of Claude token over all logged days: token counts times the dated price table.',
+  inputs: ['daily', 'prices'],
+  fn: (daily, prices) => {
+    const p = Object.fromEntries(prices.map((x) => [x.model, x]));
+    const t = { 'Cache reads': 0, 'Cache writes, 1 hour': 0, 'Cache writes, 5 minutes': 0, 'Output and thinking': 0, 'Fresh input': 0 };
+    for (const r of daily) {
+      const q = p[r.model];
+      if (r.tool !== 'Claude Code' || !q) continue;
+      t['Cache reads'] += (r.cache_read * q.cache_read) / 1e6;
+      t['Cache writes, 1 hour'] += (r.cw1h * q.cache_write_1h) / 1e6;
+      t['Cache writes, 5 minutes'] += (r.cw5 * q.cache_write_5m) / 1e6;
+      t['Output and thinking'] += (r.output * q.output) / 1e6;
+      t['Fresh input'] += (r.input * q.input) / 1e6;
+    }
+    const total = Object.values(t).reduce((a, b) => a + b, 0);
+    return Object.entries(t).map(([kind, cost]) => ({
+      kind,
+      cost: Math.round(cost * 100) / 100,
+      share: total ? Math.round((cost / total) * 1000) / 1000 : 0,
+    }));
+  },
+});
+
+dash.calc('models', {
+  title: 'Models compared',
+  description: 'Per model: replies, tokens, cache use and context from the daily logs, then the tasks it led with their median cost, tokens and prompts, first-time CI passes and rework.',
+  inputs: ['daily', 'tasks'],
+  fn: (daily, tasks) => {
+    const med = (xs) => {
+      const s = xs.filter((x) => x != null).sort((a, b) => a - b);
+      const n = s.length;
+      return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+    };
+    const r2 = (x) => (x == null ? null : Math.round(x * 100) / 100);
+    const by = new Map();
+    for (const r of daily) {
+      const m = by.get(r.model) || { model: r.model, tool: r.tool, replies: 0, input: 0, write: 0, read: 0, output: 0, thinking: 0, cost: 0 };
+      m.replies += r.replies;
+      m.input += r.input;
+      m.write += r.cw5 + r.cw1h;
+      m.read += r.cache_read;
+      m.output += r.output;
+      m.thinking += r.thinking;
+      m.cost += r.cost_usd || 0;
+      by.set(r.model, m);
+    }
+    return [...by.values()].map((m) => {
+      const led = tasks.filter((t) => t.primary_model === m.model);
+      const ci = led.filter((t) => t.ci_first_pass === true || t.ci_first_pass === false);
+      const done = led.filter((t) => t.rework != null);
+      const prompt = m.input + m.write + m.read;
+      const claude = m.tool === 'Claude Code';
+      const cost = med(led.map((t) => t.cost_usd));
+      return {
+        model: m.model,
+        tool: m.tool,
+        replies: m.replies,
+        output: m.output,
+        thinking_share: m.output ? r2(m.thinking / m.output) : null,
+        hit_rate: prompt ? Math.round((m.read / prompt) * 1000) / 1000 : null,
+        reuse: m.write ? Math.round((m.read / m.write) * 10) / 10 : null,
+        avg_context: m.replies ? Math.round(prompt / m.replies) : null,
+        cost_usd: claude ? r2(m.cost) : null,
+        tasks_led: led.length,
+        median_task_cost: claude && cost != null ? r2(cost) : null,
+        median_task_tokens: med(led.map((t) => t.input + t.cache_write + t.cache_read + t.output + t.codex_tokens)),
+        median_prompts: med(led.map((t) => t.prompts)),
+        first_pass_rate: ci.length ? r2(ci.filter((t) => t.ci_first_pass).length / ci.length) : null,
+        rework_rate: done.length ? r2(done.filter((t) => t.rework > 0).length / done.length) : null,
+      };
+    }).sort((a, b) => b.output - a.output);
+  },
+});
+
+dash.calc('by_type', {
+  title: 'Task cost by type and model',
+  description: 'Tasks grouped by kind of work (the commit type) and by the model that led them: how many, median Claude cost (Claude-led only) and median tokens across tools.',
+  inputs: ['tasks'],
+  fn: (tasks) => {
+    const med = (xs) => {
+      const s = xs.filter((x) => x != null).sort((a, b) => a - b);
+      const n = s.length;
+      return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+    };
+    const groups = new Map();
+    for (const t of tasks) {
+      if (!t.primary_model) continue;
+      const key = t.type + '|' + t.primary_model;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(t);
+    }
+    return [...groups.entries()].map(([key, ts]) => {
+      const [type, model] = key.split('|');
+      const cost = model.startsWith('claude-') ? med(ts.map((t) => t.cost_usd)) : null;
+      return {
+        type,
+        model,
+        n: ts.length,
+        median_cost: cost == null ? null : Math.round(cost * 100) / 100,
+        median_tokens: med(ts.map((t) => t.input + t.cache_write + t.cache_read + t.output + t.codex_tokens)),
+      };
+    });
+  },
+});
+
+dash.calc('context_daily', {
+  title: 'Context and cache by day',
+  description: 'Claude Code main-thread replies per day: average context per reply, cache reads per token written, and cache rebuilds.',
+  inputs: ['daily'],
+  fn: (daily) => {
+    const by = new Map();
+    for (const r of daily) {
+      if (r.tool !== 'Claude Code' || r.role !== 'main') continue;
+      const d = by.get(r.day) || { day: r.day, replies: 0, prompt: 0, write: 0, read: 0, rebuilds: 0, rebuild_tokens: 0 };
+      d.replies += r.replies;
+      d.prompt += r.input + r.cw5 + r.cw1h + r.cache_read;
+      d.write += r.cw5 + r.cw1h;
+      d.read += r.cache_read;
+      d.rebuilds += r.rebuilds;
+      d.rebuild_tokens += r.rebuild_tokens;
+      by.set(r.day, d);
+    }
+    return [...by.values()]
+      .sort((a, b) => (a.day < b.day ? -1 : 1))
+      .map((d) => ({
+        day: d.day,
+        replies: d.replies,
+        avg_context: Math.round(d.prompt / d.replies),
+        reuse: d.write ? Math.round((d.read / d.write) * 10) / 10 : null,
+        rebuilds: d.rebuilds,
+        rebuild_tokens: d.rebuild_tokens,
+      }));
+  },
+});
+
+dash.calc('monthly', {
+  title: 'Tokens per month by tool',
+  description: 'Every token Claude Code and Codex read or wrote, per month. Claude Code counts only from 30 days before its latest logged day, since older transcripts were deleted.',
+  inputs: ['daily'],
+  fn: (daily) => {
+    const end = daily.filter((r) => r.tool === 'Claude Code').reduce((m, r) => (r.day > m ? r.day : m), '');
+    const cutoff = new Date(Date.parse(end + 'T00:00:00Z') - 30 * 864e5).toISOString().slice(0, 10);
+    const by = new Map();
+    for (const r of daily) {
+      if (r.tool === 'Claude Code' && r.day < cutoff) continue;
+      const key = r.day.slice(0, 7) + '|' + r.tool;
+      const d = by.get(key) || { month: r.day.slice(0, 7), tool: r.tool, tokens: 0 };
+      d.tokens += r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
+      by.set(key, d);
+    }
+    return [...by.values()].sort((a, b) => (a.month + a.tool < b.month + b.tool ? -1 : 1));
+  },
+});
+
+dash.calc('codex_roles', {
+  title: 'Codex by role',
+  description: 'Codex model calls and tokens by what the session was for: agent work, reviews run from Claude with codex exec, and Codex Desktop auto-review.',
+  inputs: ['daily'],
+  fn: (daily) => {
+    const names = { agent: 'Agent', review: 'Review', 'auto-review': 'Auto-review' };
+    const by = new Map();
+    for (const r of daily) {
+      if (r.tool !== 'Codex') continue;
+      const d = by.get(r.role) || { role: names[r.role] || r.role, calls: 0, tokens: 0, output: 0 };
+      d.calls += r.replies;
+      d.tokens += r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
+      d.output += r.output;
+      by.set(r.role, d);
+    }
+    const total = [...by.values()].reduce((s, d) => s + d.tokens, 0);
+    return [...by.values()]
+      .map((d) => ({ ...d, share: total ? Math.round((d.tokens / total) * 1000) / 1000 : 0 }))
+      .sort((a, b) => b.tokens - a.tokens);
+  },
+});
+</script>
+
+<script>
+(() => {
+  const TABS = ['overview', 'models', 'tasks', 'cache', 'history', 'method'];
+  const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+  const F = {
+    usd: (v) => (v == null ? '—' : d3.format(Math.abs(v) >= 1000 ? '$,.0f' : '$,.2f')(v)),
+    int: (v) => (v == null ? '—' : d3.format(',')(v)),
+    big: (v) => (v == null ? '—' : Math.abs(v) >= 10000 ? compact.format(v) : d3.format(',')(Math.round(v))),
+    pct: (v) => (v == null ? '—' : d3.format('.1%')(v)),
+    pct0: (v) => (v == null ? '—' : d3.format('.0%')(v)),
+    signed: (v) => (v == null ? '—' : d3.format('+.0%')(v)),
+    times: (v) => (v == null ? '—' : d3.format(',.1f')(v) + '×'),
+    one: (v) => (v == null ? '—' : d3.format(',.1~f')(v)),
+    day: (s) => (s ? d3.utcFormat('%b %-d')(new Date(String(s).slice(0, 10) + 'T00:00:00Z')) : '—'),
+    stamp: (s) => (s ? d3.utcFormat('%b %-d, %H:%M')(new Date(String(s).slice(0, 16) + ':00Z')) : '—'),
+    month: (s) => d3.utcFormat('%b %Y')(new Date(s + '-01T00:00:00Z')),
+    yesno: (v) => (v == null ? '—' : v ? 'Yes' : 'No'),
+    text: (v) => (v == null || v === '' ? '—' : String(v)),
+    rate: (v) => (v == null ? '—' : '$' + d3.format(',.2f')(v)),
+  };
+
+  const label = (m) => {
+    if (!m) return '—';
+    if (m.startsWith('claude-')) {
+      const parts = m.slice(7).split('-');
+      const fam = parts.shift();
+      return fam.charAt(0).toUpperCase() + fam.slice(1) + ' ' + parts.join('.');
+    }
+    if (m.startsWith('gpt-')) return 'GPT-' + m.slice(4).replace(/-(\w+)$/, (_, s) => ' ' + s.charAt(0).toUpperCase() + s.slice(1));
+    if (m === 'codex-auto-review') return 'Codex auto-review';
+    return m;
+  };
+
+  const FMT = {
+    end_day: F.day, cost_7d: F.usd, cost_change: F.signed, reuse_7d: F.times, reuse_prev: F.times,
+    context_7d: F.big, context_prev: F.big, median_task_cost: F.usd, shipped_tasks: F.int, ci_tasks: F.int,
+    first_pass_rate: F.pct0, attributed_share: F.pct0, share: F.pct, as_of: F.day,
+  };
+
+  // ---- data status
+  const BAD = ['error', 'missing', 'declined', 'connect'];
+  const status = (ids) => {
+    const ds = ids.map((id) => dash.data(id));
+    if (ds.some((d) => BAD.includes(d.status))) return 'error';
+    if (ds.some((d) => d.status !== 'ok')) return 'loading';
+    return ds.map((d) => d.data);
+  };
+  const showFailed = (el) => {
+    el.classList.remove('dash-skeleton');
+    const p = document.createElement('div');
+    p.className = 'au-fail';
+    p.textContent = 'Failed to load';
+    el.replaceChildren(p);
+  };
+  const showLoading = (el) => {
+    el.replaceChildren();
+    el.classList.add('dash-skeleton');
+  };
+  // Returns the data arrays, or null after drawing the loading or failed state into `els`.
+  const ready = (ids, ...els) => {
+    const s = status(ids);
+    if (s === 'error') { els.forEach(showFailed); return null; }
+    if (s === 'loading') { els.forEach(showLoading); return null; }
+    els.forEach((el) => el.classList.remove('dash-skeleton'));
+    return s;
+  };
+
+  // ---- single-value marks outside tables
+  const fillMarks = () => {
+    document.querySelectorAll('#au [data-source][data-field]').forEach((el) => {
+      if (el.closest('table')) return;
+      const d = dash.data(el.dataset.source);
+      if (BAD.includes(d.status)) { el.classList.remove('dash-skeleton'); el.textContent = '—'; return; }
+      if (d.status !== 'ok') return;
+      let row = null;
+      if (el.dataset.row != null) row = d.data[Number(el.dataset.row)];
+      else if (el.dataset.where) {
+        const conds = el.dataset.where.split('&').map((kv) => kv.split('=').map(decodeURIComponent));
+        row = d.data.find((r) => conds.every(([k, v]) => String(r[k]) === v));
+      }
+      const v = row ? row[el.dataset.field] : null;
+      el.textContent = (FMT[el.dataset.field] || F.text)(v);
+      el.classList.remove('dash-skeleton');
+    });
+  };
+
+  // ---- colours: one per model, in order of total output
+  let colorMap = new Map();
+  const colorOf = (m) => colorMap.get(m) || 'var(--cds-chart-muted)';
+  const buildColors = () => {
+    const d = dash.data('models');
+    if (d.status === 'ok') colorMap = new Map(d.data.slice(0, 7).map((r, i) => [r.model, dash.colors[i]]));
+  };
+
+  const legend = (el, items) => {
+    el.replaceChildren(...items.map(({ color, name }) => {
+      const s = document.createElement('span');
+      const sw = document.createElement('span');
+      sw.className = 'au-swatch';
+      sw.style.background = color;
+      s.append(sw, document.createTextNode(name));
+      return s;
+    }));
+  };
+
+  // ---- tooltip
+  const makeTip = (box) => {
+    const el = document.createElement('div');
+    el.className = 'au-tip';
+    el.hidden = true;
+    box.appendChild(el);
+    return el;
+  };
+  const showTip = (el, box, x, y, title, lines) => {
+    const head = document.createElement('div');
+    head.className = 'au-tip-title';
+    head.textContent = title;
+    el.replaceChildren(head, ...lines.map((l) => {
+      const row = document.createElement('div');
+      row.className = 'au-tip-row';
+      if (l.color) {
+        const sw = document.createElement('span');
+        sw.className = 'au-swatch';
+        sw.style.background = l.color;
+        row.appendChild(sw);
+      }
+      const n = document.createElement('span');
+      n.textContent = l.name;
+      const v = document.createElement('span');
+      v.className = 'au-tip-val';
+      v.textContent = l.value;
+      row.append(n, v);
+      return row;
+    }));
+    el.hidden = false;
+    const bw = box.clientWidth;
+    let left = x + 14;
+    if (left + el.offsetWidth > bw) left = Math.max(0, x - el.offsetWidth - 14);
+    el.style.left = left + 'px';
+    el.style.top = Math.max(0, y - el.offsetHeight - 10) + 'px';
+  };
+
+  // ---- chart helpers
+  const textWidth = (svg, strings) => {
+    const g = svg.append('g').attr('class', 'au-axis');
+    let w = 0;
+    strings.forEach((s) => { w = Math.max(w, g.append('text').text(s).node().getComputedTextLength()); });
+    g.remove();
+    return w;
+  };
+  const lastDays = (end, n) => {
+    const e = new Date(end + 'T00:00:00Z');
+    return d3.utcDays(d3.utcDay.offset(e, -(n - 1)), d3.utcDay.offset(e, 1)).map(d3.utcFormat('%Y-%m-%d'));
+  };
+  const everyNth = (cats, width, px) => {
+    const k = Math.max(1, Math.ceil(cats.length / Math.max(2, Math.floor(width / px))));
+    return cats.filter((_, i) => (cats.length - 1 - i) % k === 0);
+  };
+  const plainAxis = (g) => g.attr('font-size', null).attr('font-family', null);
+
+  // Stacked bars over categories (days or months).
+  const drawStacked = (box, { cats, keys, value, color, name, fmtY, fmtX, height = 240, labelPx = 64 }) => {
+    box.replaceChildren();
+    const width = box.clientWidth;
+    if (!width) return;
+    const table = cats.map((c) => Object.assign({ cat: c }, Object.fromEntries(keys.map((k) => [k, value(c, k)]))));
+    const series = d3.stack().keys(keys)(table);
+    const max = d3.max(table, (o) => d3.sum(keys, (k) => o[k])) || 1;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
+    const bottom = height - 24;
+    const y = d3.scaleLinear([0, max], [bottom, 10]).nice();
+    const ticks = y.ticks(4);
+    const ml = Math.ceil(textWidth(svg, ticks.map(fmtY))) + 10;
+    const x = d3.scaleBand(cats, [ml, width - 4]).paddingInner(0.25).paddingOuter(0.1);
+    svg.append('g').attr('class', 'au-gridlines').selectAll('line').data(ticks).join('line')
+      .attr('x1', ml).attr('x2', width - 4).attr('y1', (t) => y(t)).attr('y2', (t) => y(t));
+    svg.append('g').attr('class', 'au-axis').attr('transform', `translate(${ml},0)`)
+      .call(d3.axisLeft(y).tickValues(ticks).tickFormat(fmtY).tickSize(0).tickPadding(8)).call(plainAxis)
+      .call((g) => g.select('.domain').remove());
+    svg.append('g').attr('class', 'au-axis').attr('transform', `translate(0,${bottom})`)
+      .call(d3.axisBottom(x).tickValues(everyNth(cats, width - ml, labelPx)).tickFormat(fmtX).tickSize(0).tickPadding(8)).call(plainAxis);
+    svg.append('g').selectAll('g').data(series).join('g').each(function (s) {
+      d3.select(this).selectAll('rect').data(s).join('rect')
+        .attr('x', (d) => x(d.data.cat)).attr('width', x.bandwidth())
+        .attr('y', (d) => y(d[1])).attr('height', (d) => Math.max(0, y(d[0]) - y(d[1])))
+        .style('fill', color(s.key));
+    });
+    const tip = makeTip(box);
+    svg.append('g').selectAll('rect').data(table).join('rect')
+      .attr('x', (d) => x(d.cat) - (x.step() * x.paddingInner()) / 2).attr('width', x.step())
+      .attr('y', 0).attr('height', bottom).style('fill', 'transparent')
+      .on('pointermove', (ev, d) => {
+        const [px, py] = d3.pointer(ev, box);
+        const lines = keys.filter((k) => d[k] > 0).reverse().map((k) => ({ color: color(k), name: name(k), value: fmtY(d[k]) }));
+        if (!lines.length) lines.push({ name: 'Nothing logged', value: '' });
+        showTip(tip, box, px, py, fmtX(d.cat), lines);
+      })
+      .on('pointerleave', () => { tip.hidden = true; });
+  };
+
+  // A single series over days: line or bars.
+  const drawDays = (box, rows, field, fmtY, kind, color) => {
+    box.replaceChildren();
+    const width = box.clientWidth;
+    if (!width || !rows.length) return;
+    const height = 180;
+    const bottom = height - 24;
+    const cats = lastDays(rows[rows.length - 1].day, 35);
+    const byDay = new Map(rows.map((r) => [r.day, r]));
+    const vals = cats.map((c) => ({ day: c, v: byDay.has(c) ? byDay.get(c)[field] : null }));
+    const max = d3.max(vals, (d) => d.v) || 1;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
+    const y = d3.scaleLinear([0, max], [bottom, 10]).nice();
+    const ticks = y.ticks(3);
+    const ml = Math.ceil(textWidth(svg, ticks.map(fmtY))) + 10;
+    const x = d3.scaleBand(cats, [ml, width - 6]).paddingInner(0.3).paddingOuter(0.1);
+    svg.append('g').attr('class', 'au-gridlines').selectAll('line').data(ticks).join('line')
+      .attr('x1', ml).attr('x2', width - 6).attr('y1', (t) => y(t)).attr('y2', (t) => y(t));
+    svg.append('g').attr('class', 'au-axis').attr('transform', `translate(${ml},0)`)
+      .call(d3.axisLeft(y).tickValues(ticks).tickFormat(fmtY).tickSize(0).tickPadding(8)).call(plainAxis)
+      .call((g) => g.select('.domain').remove());
+    svg.append('g').attr('class', 'au-axis').attr('transform', `translate(0,${bottom})`)
+      .call(d3.axisBottom(x).tickValues(everyNth(cats, width - ml, 64)).tickFormat(F.day).tickSize(0).tickPadding(8)).call(plainAxis);
+    const cx = (d) => x(d.day) + x.bandwidth() / 2;
+    const present = vals.filter((d) => d.v != null);
+    if (kind === 'bar') {
+      svg.append('g').selectAll('rect').data(present).join('rect')
+        .attr('x', (d) => x(d.day)).attr('width', x.bandwidth()).attr('rx', Math.min(3, x.bandwidth() / 2))
+        .attr('y', (d) => y(d.v)).attr('height', (d) => Math.max(0, bottom - y(d.v))).style('fill', color);
+    } else {
+      svg.append('path').datum(vals)
+        .attr('d', d3.line().defined((d) => d.v != null).x(cx).y((d) => y(d.v)))
+        .style('fill', 'none').style('stroke', color).style('stroke-width', 2)
+        .style('stroke-linecap', 'round').style('stroke-linejoin', 'round');
+      svg.append('g').selectAll('circle').data(present).join('circle')
+        .attr('cx', cx).attr('cy', (d) => y(d.v)).attr('r', 2.5).style('fill', color);
+    }
+    const tip = makeTip(box);
+    svg.append('g').selectAll('rect').data(vals).join('rect')
+      .attr('x', (d) => x(d.day) - (x.step() * x.paddingInner()) / 2).attr('width', x.step())
+      .attr('y', 0).attr('height', bottom).style('fill', 'transparent')
+      .on('pointermove', (ev, d) => {
+        const [px, py] = d3.pointer(ev, box);
+        const r = byDay.get(d.day);
+        const lines = r ? [{ name: 'Value', value: fmtY(d.v) }, { name: 'Replies', value: F.int(r.replies) }] : [{ name: 'No replies logged', value: '' }];
+        if (r && field === 'rebuilds') lines.push({ name: 'Tokens rewritten', value: F.big(r.rebuild_tokens) });
+        showTip(tip, box, px, py, F.day(d.day), lines);
+      })
+      .on('pointerleave', () => { tip.hidden = true; });
+  };
+
+  const taskTokens = (t) => t.input + t.cache_write + t.cache_read + t.output + t.codex_tokens;
+
+  const drawScatter = (box, tasks) => {
+    box.replaceChildren();
+    const width = box.clientWidth;
+    if (!width) return;
+    const pts = tasks.filter((t) => t.lines > 0 && taskTokens(t) > 0);
+    if (!pts.length) return;
+    const height = 300;
+    const bottom = height - 36;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
+    const y = d3.scaleLog(d3.extent(pts, taskTokens), [bottom, 10]).nice();
+    const yt = y.ticks().filter((v) => Number.isInteger(Math.log10(v)));
+    const ml = Math.ceil(textWidth(svg, yt.map(F.big))) + 10;
+    const x = d3.scaleLog(d3.extent(pts, (t) => t.lines), [ml + 6, width - 10]).nice();
+    const xt = x.ticks().filter((v) => Number.isInteger(Math.log10(v)));
+    svg.append('g').attr('class', 'au-gridlines').selectAll('line').data(yt).join('line')
+      .attr('x1', ml).attr('x2', width - 6).attr('y1', (t) => y(t)).attr('y2', (t) => y(t));
+    svg.append('g').attr('class', 'au-axis').attr('transform', `translate(${ml},0)`)
+      .call(d3.axisLeft(y).tickValues(yt).tickFormat(F.big).tickSize(0).tickPadding(8)).call(plainAxis)
+      .call((g) => g.select('.domain').remove());
+    svg.append('g').attr('class', 'au-axis').attr('transform', `translate(0,${bottom})`)
+      .call(d3.axisBottom(x).tickValues(xt).tickFormat(F.big).tickSize(0).tickPadding(8)).call(plainAxis);
+    svg.append('text').attr('class', 'au-axis').attr('x', width - 10).attr('y', height - 4)
+      .attr('text-anchor', 'end').style('fill', 'var(--color-fg-muted)').text('Lines changed');
+    const tip = makeTip(box);
+    svg.append('g').selectAll('circle').data(pts).join('circle')
+      .attr('cx', (t) => x(t.lines)).attr('cy', (t) => y(taskTokens(t))).attr('r', 5)
+      .style('fill', (t) => colorOf(t.primary_model)).style('fill-opacity', 0.85)
+      .style('stroke', 'var(--color-panel)').style('stroke-width', 1)
+      .on('pointermove', (ev, t) => {
+        const [px, py] = d3.pointer(ev, box);
+        showTip(tip, box, px, py, t.task + ' · ' + t.title, [
+          { color: colorOf(t.primary_model), name: label(t.primary_model), value: '' },
+          { name: 'Lines changed', value: F.int(t.lines) },
+          { name: 'Tokens', value: F.big(taskTokens(t)) },
+          { name: 'Claude cost', value: F.usd(t.cost_usd) },
+        ]);
+      })
+      .on('pointerleave', () => { tip.hidden = true; });
+  };
+
+  // ---- tables
+  const sorts = {};
+  const cmp = (a, b) => {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    if (typeof a === 'boolean') return Number(a) - Number(b);
+    return String(a).localeCompare(String(b));
+  };
+  const barCell = (max) => (td, r, field, fmt) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'au-barcell';
+    const t = document.createElement('span');
+    t.textContent = fmt(r[field]);
+    const bar = document.createElement('span');
+    bar.className = 'au-bar';
+    bar.style.width = (max && r[field] ? Math.max(2, (r[field] / max) * 64) : 0) + 'px';
+    wrap.append(t, bar);
+    td.appendChild(wrap);
+  };
+  const linkCell = (td, r) => {
+    if (r.url) {
+      const a = document.createElement('a');
+      a.href = r.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = r.title;
+      td.appendChild(a);
+    } else td.textContent = F.text(r.title);
+  };
+  // cols: [{field, fmt, render, cls}], in the order of the table's headers.
+  const fillTable = (tbl, rows, cols, keyField, sort, filter) => {
+    const st = sorts[tbl.id] || (sorts[tbl.id] = sort ? { ...sort } : null);
+    let list = rows.slice();
+    if (filter) list = list.filter(filter);
+    if (st) list.sort((a, b) => cmp(a[st.field], b[st.field]) * (st.dir === 'asc' ? 1 : -1) || cmp(a[keyField], b[keyField]));
+    tbl.tBodies[0].replaceChildren(...list.map((r) => {
+      const tr = document.createElement('tr');
+      tr.dataset.key = String(r[keyField]);
+      cols.forEach((c) => {
+        const td = document.createElement('td');
+        if (c.cls) td.className = c.cls;
+        if (c.render) c.render(td, r, c.field, c.fmt || F.text);
+        else td.textContent = (c.fmt || F.text)(r[c.field]);
+        tr.appendChild(td);
+      });
+      return tr;
+    }));
+    if (st) tbl.querySelectorAll('thead th[data-field]').forEach((th) => {
+      th.setAttribute('aria-sort', th.dataset.field === st.field ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+  };
+  const tableState = (tbl, ids) => {
+    const s = status(ids);
+    if (s === 'error') { tbl.tBodies[0].replaceChildren(); return null; }
+    if (s === 'loading') return null;
+    return s;
+  };
+  document.querySelectorAll('#au table th[data-field] button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const th = btn.closest('th');
+      const tbl = btn.closest('table');
+      const f = th.dataset.field;
+      const st = sorts[tbl.id] || (sorts[tbl.id] = { field: f, dir: 'desc' });
+      if (st.field === f) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+      else { st.field = f; st.dir = th.classList.contains('num') ? 'desc' : 'asc'; }
+      render();
+    });
+  });
+  document.getElementById('task-search').addEventListener('input', () => render());
+
+  // ---- pages
+  const PAGES = {
+    overview() {
+      const box = document.getElementById('chart-daily-cost');
+      const lg = document.getElementById('legend-daily-cost');
+      const data = ready(['daily'], box);
+      if (data) {
+        const rows = data[0].filter((r) => r.tool === 'Claude Code');
+        const end = rows.reduce((m, r) => (r.day > m ? r.day : m), '');
+        const cats = lastDays(end, 35);
+        const keep = new Set(cats);
+        const totals = d3.rollup(rows.filter((r) => keep.has(r.day)), (v) => d3.sum(v, (r) => r.cost_usd || 0), (r) => r.model);
+        const keys = [...totals.keys()].sort((a, b) => totals.get(b) - totals.get(a));
+        const cell = d3.rollup(rows, (v) => d3.sum(v, (r) => r.cost_usd || 0), (r) => r.day, (r) => r.model);
+        legend(lg, keys.map((k) => ({ color: colorOf(k), name: label(k) })));
+        drawStacked(box, {
+          cats, keys, value: (c, k) => (cell.get(c) && cell.get(c).get(k)) || 0,
+          color: colorOf, name: label, fmtY: (v) => '$' + d3.format(',.0f')(v), fmtX: F.day,
+        });
+      }
+      const mix = document.getElementById('tbl-mix');
+      const m = tableState(mix, ['cost_mix']);
+      if (m) {
+        const max = d3.max(m[0], (r) => r.cost);
+        fillTable(mix, m[0], [
+          { field: 'kind' },
+          { field: 'cost', cls: 'num', fmt: F.usd, render: barCell(max) },
+          { field: 'share', cls: 'num', fmt: F.pct },
+        ], 'kind', { field: 'cost', dir: 'desc' });
+      }
+      const top = document.getElementById('tbl-top');
+      const t = tableState(top, ['tasks']);
+      if (t) {
+        const rows = t[0].slice().sort((a, b) => b.cost_usd - a.cost_usd).slice(0, 8);
+        fillTable(top, rows, [
+          { field: 'task' },
+          { field: 'title', cls: 'title', render: linkCell },
+          { field: 'primary_model', cls: 'opt', fmt: label },
+          { field: 'cost_usd', cls: 'num', fmt: F.usd },
+        ], 'task', { field: 'cost_usd', dir: 'desc' });
+      }
+    },
+
+    models() {
+      const tbl = document.getElementById('tbl-models');
+      const m = tableState(tbl, ['models']);
+      if (m) {
+        fillTable(tbl, m[0], [
+          { field: 'model', cls: 'rowhead', render: (td, r) => { legend(td, [{ color: colorOf(r.model), name: label(r.model) }]); } },
+          { field: 'tool', cls: 'opt' },
+          { field: 'replies', cls: 'num', fmt: F.int },
+          { field: 'output', cls: 'num', fmt: F.big },
+          { field: 'thinking_share', cls: 'num opt', fmt: F.pct0 },
+          { field: 'hit_rate', cls: 'num opt', fmt: F.pct },
+          { field: 'reuse', cls: 'num', fmt: F.times },
+          { field: 'avg_context', cls: 'num opt', fmt: F.big },
+          { field: 'cost_usd', cls: 'num', fmt: F.usd },
+          { field: 'tasks_led', cls: 'num', fmt: F.int },
+          { field: 'median_task_cost', cls: 'num', fmt: F.usd },
+          { field: 'median_task_tokens', cls: 'num opt', fmt: F.big },
+          { field: 'median_prompts', cls: 'num opt', fmt: F.one },
+          { field: 'first_pass_rate', cls: 'num opt', fmt: F.pct0 },
+          { field: 'rework_rate', cls: 'num opt', fmt: F.pct0 },
+        ], 'model', { field: 'output', dir: 'desc' });
+      }
+
+      const bt = document.getElementById('tbl-by-type');
+      const s = status(['by_type', 'models']);
+      if (Array.isArray(s)) {
+        const [rows, models] = s;
+        const cols = models.filter((r) => r.tasks_led > 0).sort((a, b) => b.tasks_led - a.tasks_led).slice(0, 6).map((r) => r.model);
+        const typeN = d3.rollup(rows, (v) => d3.sum(v, (r) => r.n), (r) => r.type);
+        const types = [...typeN.keys()].sort((a, b) => typeN.get(b) - typeN.get(a));
+        const head = document.createElement('tr');
+        const th0 = document.createElement('th');
+        th0.textContent = 'Kind of work';
+        head.appendChild(th0);
+        cols.forEach((c) => {
+          const th = document.createElement('th');
+          th.className = 'num';
+          th.textContent = label(c);
+          head.appendChild(th);
+        });
+        bt.tHead.replaceChildren(head);
+        bt.tBodies[0].replaceChildren(...types.map((type) => {
+          const tr = document.createElement('tr');
+          const th = document.createElement('td');
+          th.className = 'rowhead';
+          th.textContent = type;
+          tr.appendChild(th);
+          cols.forEach((model) => {
+            const td = document.createElement('td');
+            td.className = 'num';
+            const r = rows.find((x) => x.type === type && x.model === model);
+            if (r) {
+              const where = 'type=' + encodeURIComponent(type) + '&model=' + encodeURIComponent(model);
+              const v = document.createElement('span');
+              const useCost = r.median_cost != null;
+              v.dataset.source = 'by_type';
+              v.dataset.where = where;
+              v.dataset.field = useCost ? 'median_cost' : 'median_tokens';
+              v.textContent = useCost ? F.usd(r.median_cost) : F.big(r.median_tokens) + ' tok';
+              const n = document.createElement('span');
+              n.className = 'au-cell-n';
+              n.dataset.source = 'by_type';
+              n.dataset.where = where;
+              n.dataset.field = 'n';
+              n.textContent = '×' + r.n;
+              td.append(v, n);
+            } else td.textContent = '—';
+            tr.appendChild(td);
+          });
+          return tr;
+        }));
+      } else if (s === 'error') bt.tBodies[0].replaceChildren();
+
+      const box = document.getElementById('chart-tools');
+      const data = ready(['daily'], box);
+      if (data) {
+        const rows = data[0];
+        const end = rows.reduce((mx, r) => (r.day > mx ? r.day : mx), '');
+        const cats = lastDays(end, 35);
+        const cell = d3.rollup(rows, (v) => d3.sum(v, (r) => r.output), (r) => r.day, (r) => r.tool);
+        const keys = ['Claude Code', 'Codex'];
+        const tc = { 'Claude Code': dash.colors[0], Codex: dash.colors[1] };
+        legend(document.getElementById('legend-tools'), keys.map((k) => ({ color: tc[k], name: k })));
+        drawStacked(box, {
+          cats, keys, value: (c, k) => (cell.get(c) && cell.get(c).get(k)) || 0,
+          color: (k) => tc[k], name: (k) => k, fmtY: F.big, fmtX: F.day,
+        });
+      }
+
+      const cx = document.getElementById('tbl-codex');
+      const c = tableState(cx, ['codex_roles']);
+      if (c) {
+        fillTable(cx, c[0], [
+          { field: 'role' },
+          { field: 'calls', cls: 'num', fmt: F.int },
+          { field: 'tokens', cls: 'num', fmt: F.big },
+          { field: 'output', cls: 'num', fmt: F.big },
+          { field: 'share', cls: 'num', fmt: F.pct0 },
+        ], 'role', { field: 'tokens', dir: 'desc' });
+      }
+    },
+
+    tasks() {
+      const box = document.getElementById('chart-scatter');
+      const data = ready(['tasks'], box);
+      if (data) {
+        const used = [...new Set(data[0].filter((t) => t.lines > 0).map((t) => t.primary_model))];
+        const shown = used.filter((m) => colorMap.has(m));
+        const items = shown.map((m) => ({ color: colorOf(m), name: label(m) }));
+        if (used.length > shown.length) items.push({ color: 'var(--cds-chart-muted)', name: 'Other models' });
+        legend(document.getElementById('legend-scatter'), items);
+        drawScatter(box, data[0]);
+      }
+      const tbl = document.getElementById('tbl-tasks');
+      const t = tableState(tbl, ['tasks']);
+      if (t) {
+        const q = document.getElementById('task-search').value.trim().toLowerCase();
+        const max = d3.max(t[0], (r) => r.cost_usd);
+        fillTable(tbl, t[0], [
+          { field: 'task' },
+          { field: 'title', cls: 'title', render: linkCell },
+          { field: 'type', cls: 'opt' },
+          { field: 'size', cls: 'opt' },
+          { field: 'primary_model', fmt: label },
+          { field: 'cost_usd', cls: 'num', fmt: F.usd, render: barCell(max) },
+          { field: 'prompts', cls: 'num', fmt: F.int },
+          { field: 'replies', cls: 'num opt', fmt: F.int },
+          { field: 'test_runs', cls: 'num opt', fmt: F.int },
+          { field: 'test_failures', cls: 'num opt', fmt: F.int },
+          { field: 'ci_cycles', cls: 'num opt', fmt: F.int },
+          { field: 'ci_first_pass', cls: 'opt', fmt: F.yesno },
+          { field: 'review_runs', cls: 'num opt', fmt: F.int },
+          { field: 'rework', cls: 'num opt', fmt: F.int },
+          { field: 'active_minutes', cls: 'num opt', fmt: (v) => (v == null ? '—' : d3.format(',.0f')(v)) },
+          { field: 'shipped', cls: 'opt', fmt: F.day },
+        ], 'task', { field: 'cost_usd', dir: 'desc' },
+        q ? (r) => [r.task, r.title, r.type, r.primary_model, label(r.primary_model)].some((v) => v && String(v).toLowerCase().includes(q)) : null);
+      }
+    },
+
+    cache() {
+      const boxes = ['chart-context', 'chart-reuse', 'chart-rebuilds'].map((id) => document.getElementById(id));
+      const data = ready(['context_daily'], ...boxes);
+      if (data) {
+        const rows = data[0];
+        drawDays(boxes[0], rows, 'avg_context', F.big, 'line', dash.colors[0]);
+        drawDays(boxes[1], rows, 'reuse', (v) => d3.format(',.0f')(v) + '×', 'line', dash.colors[0]);
+        drawDays(boxes[2], rows, 'rebuilds', d3.format(',.0f'), 'bar', 'var(--cds-chart-status-critical)');
+      }
+      const tbl = document.getElementById('tbl-sessions');
+      const s = tableState(tbl, ['sessions']);
+      if (s) {
+        fillTable(tbl, s[0], [
+          { field: 'session' },
+          { field: 'title', cls: 'title' },
+          { field: 'started', cls: 'opt', fmt: (v) => (v ? d3.timeFormat('%b %-d, %H:%M')(new Date(v)) : '—') },
+          { field: 'replies', cls: 'num', fmt: F.int },
+          { field: 'subagent_replies', cls: 'num opt', fmt: F.int },
+          { field: 'prompts', cls: 'num opt', fmt: F.int },
+          { field: 'compactions', cls: 'num opt', fmt: F.int },
+          { field: 'rebuilds', cls: 'num opt', fmt: F.int },
+          { field: 'peak_context', cls: 'num opt', fmt: F.big },
+          { field: 'avg_context', cls: 'num', fmt: F.big },
+          { field: 'cost_usd', cls: 'num', fmt: F.usd },
+        ], 'session', { field: 'started', dir: 'desc' });
+      }
+    },
+
+    history() {
+      const box = document.getElementById('chart-history');
+      const data = ready(['monthly'], box);
+      if (data) {
+        const rows = data[0];
+        const cats = [...new Set(rows.map((r) => r.month))].sort();
+        const keys = ['Claude Code', 'Codex'];
+        const tc = { 'Claude Code': dash.colors[0], Codex: dash.colors[1] };
+        const cell = d3.rollup(rows, (v) => d3.sum(v, (r) => r.tokens), (r) => r.month, (r) => r.tool);
+        legend(document.getElementById('legend-history'), keys.map((k) => ({ color: tc[k], name: k })));
+        drawStacked(box, {
+          cats, keys, value: (c, k) => (cell.get(c) && cell.get(c).get(k)) || 0,
+          color: (k) => tc[k], name: (k) => k, fmtY: F.big, fmtX: F.month, labelPx: 80,
+        });
+      }
+    },
+
+    method() {
+      const tbl = document.getElementById('tbl-prices');
+      const p = tableState(tbl, ['prices']);
+      if (p) {
+        fillTable(tbl, p[0], [
+          { field: 'model', fmt: label },
+          { field: 'input', cls: 'num', fmt: F.rate },
+          { field: 'output', cls: 'num', fmt: F.rate },
+          { field: 'cache_read', cls: 'num', fmt: F.rate },
+          { field: 'cache_write_5m', cls: 'num opt', fmt: F.rate },
+          { field: 'cache_write_1h', cls: 'num opt', fmt: F.rate },
+        ], 'model', null);
+      }
+    },
+  };
+
+  let active = 'overview';
+  const render = () => {
+    buildColors();
+    fillMarks();
+    PAGES[active]();
+  };
+  const select = (id, link) => {
+    if (!TABS.includes(id)) return;
+    active = id;
+    TABS.forEach((t) => {
+      document.getElementById(t).hidden = t !== id;
+      const tab = document.getElementById('tab-' + t);
+      tab.setAttribute('aria-selected', String(t === id));
+      tab.tabIndex = t === id ? 0 : -1;
+    });
+    if (link) dash.setLink(id);
+    render();
+  };
+  document.querySelectorAll('.au-tab').forEach((b) => b.addEventListener('click', () => select(b.dataset.tab, true)));
+  document.querySelector('.au-tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const i = TABS.indexOf(active);
+    const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+    select(next, true);
+    document.getElementById('tab-' + next).focus();
+  });
+
+  dash.onData(render);
+  const named = location.hash.slice(1);
+  if (TABS.includes(named)) select(named, false);
+})();
+</script>

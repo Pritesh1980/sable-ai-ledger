@@ -1,0 +1,1634 @@
+<title>Sable AI Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Marcellus&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
+<style>
+/* Layout: data first. A row of figures and a full-bleed waveform of every model call open the page; each section below is a small heading over full-width charts. Written readings live in the Insights drawer, opened on demand. */
+:root {
+  color-scheme: dark;
+  --ink: #131110;
+  --surface: #1d1a17;
+  --hairline: #35312b;
+  --bone: #efe9dc;
+  --ash: #a8a294;
+  --dim: #8d877b;
+  --spark: #ff6b4a;
+  /* Model palette in fixed order, validated against --ink (lightness band, chroma, CVD and contrast all pass). */
+  --m-opus55: #d0513b;
+  --m-codex: #0e9a94;
+  --m-sonnet55: #ba8b25;
+  --m-opus5: #ab4b90;
+  --m-opus48: #4e78c7;
+  --m-sonnet5: #659e41;
+  --m-other: #6f6a60;
+  --display: 'Marcellus', 'Trajan Pro', 'Times New Roman', serif;
+  --ui: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+}
+html { background: var(--ink); }
+body {
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--ui);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--ink); }
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 40; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--dim); }
+a:hover { text-decoration-color: var(--bone); }
+:focus-visible { outline: 2px solid var(--bone); outline-offset: 3px; border-radius: 2px; }
+.wrap {
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* masthead */
+.mast {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hairline);
+}
+.mast-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 12px; }
+.brand { margin: 0; display: flex; align-items: baseline; gap: 10px; white-space: nowrap; font-weight: 400; font-size: inherit; }
+.brand-mark { font-family: var(--display); font-size: 1.375rem; letter-spacing: 0.02em; }
+.brand-sub { color: var(--ash); font-size: var(--step--1); font-stretch: 112%; }
+.nav { display: flex; gap: 4px 18px; flex-wrap: wrap; justify-content: flex-end; font-size: var(--step--1); margin-left: auto; }
+.nav a { color: var(--ash); text-decoration: none; padding-block: 4px; }
+.nav a:hover { color: var(--bone); }
+@media (max-width: 680px) {
+  .mast-row { flex-wrap: wrap; row-gap: 2px; padding-block: 10px 6px; }
+  .nav { order: 3; width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 18px; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { white-space: nowrap; }
+}
+
+/* Insights: one button in the masthead, a quieter one on each section */
+.ins-btn, .ins-open {
+  appearance: none; font: inherit; font-size: var(--step--1); cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--hairline); border-radius: 999px; line-height: 1.2;
+}
+.ins-btn { color: var(--bone); background: var(--surface); padding: 7px 14px; }
+.ins-btn:hover { border-color: var(--ash); }
+.ins-open { color: var(--ash); background: none; padding: 5px 12px; }
+.ins-open:hover { color: var(--bone); border-color: var(--ash); }
+
+/* overview: what the page covers, then the figures */
+.overview { padding-top: clamp(24px, 3.5vw, 44px); }
+.ov-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; margin-bottom: 18px; }
+.scope { margin: 0; color: var(--ash); font-size: var(--step--1); max-width: 110ch; }
+
+.wave { margin: clamp(28px, 4vw, 44px) 0 0; position: relative; }
+.wave canvas { display: block; width: 100%; height: clamp(240px, 34vw, 380px); cursor: crosshair; touch-action: pan-y; }
+.wave-tip {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 13rem; max-width: 19rem;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.5); padding: 10px 12px; font-size: var(--step--1); line-height: 1.45;
+}
+.wave-tip .when { color: var(--ash); }
+.wave-tip .who { display: flex; align-items: center; gap: 8px; font-weight: 600; margin: 2px 0 4px; }
+.wave-tip .row { display: flex; justify-content: space-between; gap: 16px; }
+.wave-tip .row span:last-child { font-variant-numeric: tabular-nums; }
+.wave-tip .flag { color: var(--spark); margin-top: 4px; }
+.wave-tip .task-line { color: var(--ash); margin-top: 2px; }
+.wave-foot { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: flex-start; justify-content: space-between; padding-block: 16px 0; }
+.wave-cap { margin: 0; color: var(--ash); font-size: var(--step--1); max-width: 60ch; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--step--1); color: var(--ash); }
+.legend li { display: flex; align-items: center; gap: 7px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; }
+.sw.spark { width: 3px; height: 12px; border-radius: 1px; background: var(--spark); box-shadow: 0 0 6px var(--spark); }
+
+/* figures: one row of five on wide screens; two columns below that, the total across the top */
+.figures { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.fig { padding: 16px 16px 18px 0; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.fig + .fig { padding-left: 20px; border-left: 1px solid var(--hairline); }
+.fig-num {
+  margin: 0; font-size: clamp(1.6rem, 2.5vw, 2.25rem); font-weight: 640; font-stretch: 112%;
+  letter-spacing: -0.03em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.fig-label { margin: 0; font-size: var(--step--1); color: var(--bone); font-weight: 500; }
+.fig-note { margin: 0; color: var(--ash); font-size: var(--step--1); line-height: 1.45; }
+@media (max-width: 1000px) {
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 0; }
+  .fig { border-bottom: 1px solid var(--hairline); }
+  .fig + .fig { padding-left: 0; border-left: 0; }
+  .fig:first-child { grid-column: 1 / -1; }
+  .fig:nth-child(odd):not(:first-child) { padding-left: 20px; border-left: 1px solid var(--hairline); }
+}
+@media (max-width: 420px) { .fig:nth-child(odd):not(:first-child) { padding-left: 14px; } }
+.odo { display: inline-flex; align-items: flex-start; height: 1em; overflow: hidden; }
+.odo > span { display: inline-block; height: 1em; line-height: 1; }
+.odo-slot { overflow: hidden; }
+.odo-reel { display: flex; flex-direction: column; }
+.odo-reel span { display: block; height: 1em; line-height: 1; text-align: center; }
+
+/* sections: a small heading row, then the charts at full width */
+.spread { display: grid; gap: 24px; padding-block: clamp(36px, 4.5vw, 64px); border-top: 1px solid var(--hairline); }
+.wave + .spread, .overview + .spread { margin-top: clamp(36px, 4.5vw, 56px); }
+.spread, .foot, .overview { scroll-margin-top: 64px; }
+@media (max-width: 680px) { .spread, .foot, .overview { scroll-margin-top: 92px; } }
+.spread-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px; }
+.spread-head h2 { font-family: var(--display); font-weight: 400; font-size: clamp(1.5rem, 2.3vw, 1.875rem); line-height: 1.1; margin: 0; }
+.spread-head h2:focus { outline: none; }
+.spread-head p { margin: 6px 0 0; color: var(--ash); max-width: 78ch; font-size: var(--step--1); line-height: 1.55; }
+.spread-body { display: grid; gap: 32px; min-width: 0; }
+.spread-body > * { min-width: 0; }
+.chart { width: 100%; min-width: 0; }
+.chart-title { margin: 0 0 4px; font-size: var(--step-0); font-weight: 600; }
+.chart-note { margin: 0 0 12px; color: var(--ash); font-size: var(--step--1); max-width: 70ch; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px 48px; }
+@media (max-width: 1100px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.pair-wide { grid-column: 1 / -1; }
+.narrow { max-width: 62rem; }
+.narrower { max-width: 40rem; }
+
+/* the Insights drawer */
+.drawer {
+  position: fixed; inset: 0 0 0 auto; margin: 0; padding: 0; width: min(460px, 100vw); height: 100dvh; max-width: 100vw; max-height: none;
+  border: 0; border-left: 1px solid var(--hairline); background: var(--surface); color: var(--bone); overflow-y: auto; overscroll-behavior: contain;
+}
+.drawer::backdrop { background: rgb(0 0 0 / 0.55); }
+.drawer[open] { animation: drawer-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes drawer-in { from { transform: translateX(28px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .drawer[open] { animation: none; } }
+@media (max-width: 520px) { .drawer { border-left: 0; } }
+html:has(.drawer[open]) { overflow: hidden; }
+.drawer-in { min-height: 100%; box-sizing: border-box; padding: calc(18px + env(safe-area-inset-top, 0px)) 24px calc(32px + env(safe-area-inset-bottom, 0px)); }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.drawer-head h2 { font-family: var(--display); font-weight: 400; font-size: 1.625rem; margin: 0; }
+.drawer-head h2:focus { outline: none; }
+.drawer-note { margin: 8px 0 8px; color: var(--ash); font-size: var(--step--1); line-height: 1.55; }
+.ins { padding: 18px 12px 20px; margin-inline: -12px; border-top: 1px solid var(--hairline); border-radius: 6px; scroll-margin-top: 12px; transition: background-color 0.6s ease; }
+.ins.flash { background: color-mix(in srgb, var(--bone) 7%, transparent); transition-duration: 0.15s; }
+.ins-jump { display: inline-block; font-size: var(--step--1); font-weight: 600; color: var(--ash); text-decoration: none; margin-bottom: 8px; }
+.ins-jump:hover, .ins-jump:focus-visible { color: var(--bone); text-decoration: underline; }
+.ins h3 { font-family: var(--display); font-weight: 400; font-size: 1.375rem; line-height: 1.25; margin: 0 0 10px; text-wrap: balance; }
+.ins p { margin: 0; line-height: 1.6; }
+.ins b { font-weight: 600; font-stretch: 108%; }
+
+/* cycles: one row per kind of round, a bar per lead model on that row's own scale */
+.pairs { display: grid; gap: 18px; margin-top: 18px; }
+.pair-row { display: grid; grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr); gap: 6px 20px; align-items: center; }
+.pair-label { font-size: var(--step--1); line-height: 1.35; }
+.pair-label small { display: block; color: var(--ash); font-size: 0.75rem; }
+.pair-bars { display: grid; gap: 6px; }
+.pair-bar { display: grid; grid-template-columns: minmax(0, 1fr) 3.5rem; gap: 10px; align-items: center; font-size: var(--step--1); color: var(--ash); font-variant-numeric: tabular-nums; }
+.pair-bar .track { display: block; height: 10px; }
+.pair-bar i { display: block; height: 10px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.pair-bar span:last-child { text-align: right; }
+@media (max-width: 560px) { .pair-row { grid-template-columns: minmax(0, 1fr); } }
+.titled { display: inline-flex; align-items: baseline; gap: 9px; }
+.titled .sw { transform: translateY(1px); }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; }
+table.tbl { width: 100%; border-collapse: collapse; font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.tbl th { text-align: left; font-weight: 500; color: var(--ash); padding: 8px 10px; border-bottom: 1px solid var(--hairline); white-space: nowrap; vertical-align: bottom; }
+.tbl td { padding: 9px 10px; border-bottom: 1px solid color-mix(in srgb, var(--hairline) 60%, transparent); white-space: nowrap; }
+.tbl .num { text-align: right; }
+.tbl td.title { white-space: normal; min-width: 12rem; max-width: 20rem; line-height: 1.4; overflow-wrap: anywhere; }
+.tbl td.title a { text-decoration: none; color: var(--bone); }
+.tbl td.title a:hover, .tbl td.title a:focus-visible { text-decoration: underline; text-decoration-color: var(--ash); }
+.tbl tbody tr:hover td { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.tbl tr.faded td { color: var(--dim); }
+.tbl tr.faded .sw { opacity: 0.5; }
+.tbl th[title] { text-decoration: underline dotted var(--dim); text-underline-offset: 4px; cursor: help; }
+.tbl th button { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.tbl th button:hover { color: var(--bone); }
+.tbl th[aria-sort="ascending"] button::after { content: " \2191"; }
+.tbl th[aria-sort="descending"] button::after { content: " \2193"; }
+.who { display: inline-flex; align-items: center; gap: 8px; }
+.costbar { display: inline-flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.costbar i { display: inline-block; height: 6px; border-radius: 3px; }
+.code { font-stretch: 88%; color: var(--ash); }
+@media (max-width: 720px) { .tbl .opt { display: none; } }
+.tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.search {
+  font: inherit; font-size: var(--step--1); color: var(--bone); background: var(--surface);
+  border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 12px; width: min(100%, 22rem);
+}
+.search::placeholder { color: var(--dim); }
+.more {
+  font: inherit; font-size: var(--step--1); color: var(--bone); background: none; cursor: pointer;
+  border: 1px solid var(--hairline); border-radius: 999px; padding: 8px 16px; margin-top: 16px;
+}
+.more:hover { border-color: var(--ash); }
+details.numbers { font-size: var(--step--1); color: var(--ash); }
+details.numbers summary { cursor: pointer; width: max-content; }
+details.numbers[open] summary { margin-bottom: 10px; }
+
+/* codex roles */
+.roles { display: grid; gap: 14px; }
+.role { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 4.5rem; gap: 12px; align-items: center; font-size: var(--step--1); }
+.role-bar { height: 8px; border-radius: 4px; background: var(--m-codex); }
+.role-val { text-align: right; color: var(--ash); font-variant-numeric: tabular-nums; }
+
+/* footer */
+.foot { border-top: 1px solid var(--hairline); padding-block: clamp(48px, 7vw, 88px) clamp(40px, 6vw, 64px); display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(24px, 4vw, 64px); }
+@media (max-width: 900px) { .foot { grid-template-columns: minmax(0, 1fr); } }
+.foot h2 { font-family: var(--display); font-weight: 400; font-size: 1.75rem; margin: 0; }
+.foot p { color: var(--ash); margin: 12px 0 0; max-width: 42ch; font-size: var(--step--1); line-height: 1.6; }
+.defs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 40px; margin: 0; font-size: var(--step--1); }
+@media (max-width: 640px) { .defs { grid-template-columns: minmax(0, 1fr); } }
+.defs dt { font-weight: 600; margin-bottom: 4px; }
+.defs dd { margin: 0; color: var(--ash); line-height: 1.55; }
+.prices { margin-top: 32px; }
+</style>
+
+<header class="mast">
+  <div class="wrap mast-row">
+    <h1 class="brand"><span class="brand-mark">Sable</span><span class="brand-sub">AI ledger</span></h1>
+    <nav class="nav" aria-label="Sections">
+      <a href="#bill">The bill</a>
+      <a href="#work">The work</a>
+      <a href="#cycles">The cycles</a>
+      <a href="#days">Over time</a>
+      <a href="#tasks">Every task</a>
+      <a href="#long">The long view</a>
+    </nav>
+    <button type="button" class="ins-btn" data-ins="" aria-haspopup="dialog" aria-controls="insights">Insights</button>
+  </div>
+</header>
+
+<main>
+  <section class="overview" id="overview" aria-label="Overview">
+    <div class="wrap">
+      <div class="ov-head">
+        <p class="scope" id="scope">Loading Claude Code and Codex usage for Sable.</p>
+        <button type="button" class="ins-open" data-ins="overview" aria-haspopup="dialog" aria-label="Insight for the overview">Insight</button>
+      </div>
+      <div class="figures" id="figures">
+        <div class="fig"><p class="fig-num" id="fig-total">—</p><p class="fig-label" id="fig-total-label">Claude cost in total</p><p class="fig-note" id="fig-total-note"></p></div>
+        <div class="fig"><p class="fig-num" id="fig-week">—</p><p class="fig-label">Claude cost, last 7 days</p><p class="fig-note" id="fig-week-note"></p></div>
+        <div class="fig"><p class="fig-num" id="fig-rebuild">—</p><p class="fig-label">Spent rebuilding the cache, last 7 days</p><p class="fig-note" id="fig-rebuild-note"></p></div>
+        <div class="fig"><p class="fig-num" id="fig-task">—</p><p class="fig-label">Median cost per shipped task</p><p class="fig-note" id="fig-task-note"></p></div>
+        <div class="fig"><p class="fig-num" id="fig-ctx">—</p><p class="fig-label">Context per reply, last 7 days</p><p class="fig-note" id="fig-ctx-note"></p></div>
+      </div>
+    </div>
+    <figure class="wave">
+      <canvas id="wave" tabindex="0" role="img" aria-label="Waveform of every model call in the last 30 days"></canvas>
+      <div class="wave-tip" id="wave-tip" hidden aria-live="polite"></div>
+      <figcaption class="wrap wave-foot">
+        <div class="wave-cap">
+          <p style="margin:0">Every model call in the last 30 days, oldest on the left. Claude Code rises above the line and Codex hangs below it. Height is the number of tokens the call read.</p>
+          <p style="margin:8px 0 0">Each ramp is one session: every reply re-reads everything before it, so it climbs until the session is cleared or compacted. Calls are evenly spaced, so busy days take more room than quiet ones. Point at it, or focus it and use the arrow keys, to read any call.</p>
+        </div>
+        <ul class="legend" id="wave-legend"></ul>
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="wrap spread" id="bill" aria-labelledby="bill-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="bill-h" tabindex="-1">The bill</h2>
+        <p>Claude cost at API list prices, traced from each model to the kind of token it paid for.</p>
+      </div>
+      <button type="button" class="ins-open" data-ins="bill" aria-haspopup="dialog" aria-label="Insight for The bill">Insight</button>
+    </div>
+    <div class="spread-body">
+      <div>
+        <p class="chart-title">From model to kind of token</p>
+        <p class="chart-note">Each band is API-equivalent cost. On a Max plan this measures value used, not money spent. Codex has no list price here, so it is left out, as are models under $1.</p>
+        <div class="chart" id="chart-sankey" style="height: 440px"></div>
+      </div>
+      <details class="numbers"><summary>The numbers behind it</summary><div class="tbl-wrap"><table class="tbl" id="tbl-sankey"></table></div></details>
+    </div>
+  </section>
+
+  <section class="wrap spread" id="work" aria-labelledby="work-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="work-h" tabindex="-1">The work</h2>
+        <p>What each task took, grouped by the model that wrote most of it.</p>
+      </div>
+      <button type="button" class="ins-open" data-ins="work" aria-haspopup="dialog" aria-label="Insight for The work">Insight</button>
+    </div>
+    <div class="spread-body">
+      <div>
+        <p class="chart-title">Tokens per task, by lead model</p>
+        <p class="chart-note">Each dot is one task, placed by every token Claude Code and Codex spent on it. The axis is logarithmic, so each gridline is ten times the last. Point at a dot to see the task.</p>
+        <div class="chart" id="chart-swarm" style="height: 420px"></div>
+      </div>
+      <div>
+        <p class="chart-title">Models side by side</p>
+        <p class="chart-note">Medians across the tasks each model led. Faded rows led fewer than 5 tasks, too few to compare. Later fixed means a fix commit on main touched the same source files within 14 days, a rough signal rather than a verdict.</p>
+        <div class="tbl-wrap"><table class="tbl" id="tbl-models"></table></div>
+      </div>
+      <div id="bytype-block" class="narrower" hidden>
+        <p class="chart-title">The same kind of work</p>
+        <p class="chart-note" id="bytype-note">Median Claude cost per task, split by the kind of change. The number in brackets is how many tasks.</p>
+        <div class="tbl-wrap"><table class="tbl" id="tbl-bytype"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap spread" id="cycles" aria-labelledby="cycles-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="cycles-h" tabindex="-1">The cycles</h2>
+        <p>How many rounds each task went through before it shipped, for the two models that led the most tasks.</p>
+      </div>
+      <button type="button" class="ins-open" data-ins="cycles" aria-haspopup="dialog" aria-label="Insight for The cycles">Insight</button>
+    </div>
+    <div class="spread-body">
+      <div class="narrow">
+        <p class="chart-title">Rounds per task, by lead model</p>
+        <p class="chart-note">Averages across the tasks each model led. Each row has its own scale, so compare the two bars within a row.</p>
+        <ul class="legend" id="cycles-legend"></ul>
+        <div class="pairs" id="cycles-pairs"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap spread" id="days" aria-labelledby="days-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="days-h" tabindex="-1">Over time</h2>
+        <p>Claude work per day, the context each reply carried, and what each shipped task cost, week by week.</p>
+      </div>
+      <button type="button" class="ins-open" data-ins="days" aria-haspopup="dialog" aria-label="Insight for Over time">Insight</button>
+    </div>
+    <div class="spread-body pair">
+      <div>
+        <p class="chart-title">Claude work per day</p>
+        <p class="chart-note">Logs start on 22 September. Brighter squares cost more, and empty ones had no Claude Code work on this Mac.</p>
+        <div class="chart" id="chart-cal" style="height: 260px"></div>
+      </div>
+      <div>
+        <p class="chart-title">Context per reply</p>
+        <p class="chart-note">Average tokens each main-thread reply read, so lower is cheaper. Red dots mark days with cache rebuilds, sized by how many. Gaps are days without Claude Code work.</p>
+        <div class="chart" id="chart-ctx" style="height: 260px"></div>
+      </div>
+      <div class="pair-wide">
+        <p class="chart-title">Cost per shipped task, week by week</p>
+        <p class="chart-note">Each dot is a task, placed in the week it shipped and coloured by its lead model. The bar marks the week's median. Weeks start on Monday, and history begins on 22 September, so this fills in as you work.</p>
+        <div class="chart" id="chart-weekly" style="height: 320px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap spread" id="tasks" aria-labelledby="tasks-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="tasks-h" tabindex="-1">Every task</h2>
+        <p>A task is a PR, or work committed straight to main and grouped by the issue it names. The square before each title is its lead model. Failed test runs include the failing tests TDD writes on purpose, and reviews are cross-model critiques from Codex or agy.</p>
+      </div>
+    </div>
+    <div class="spread-body">
+      <div>
+        <div class="tools">
+          <input type="search" class="search" id="task-search" placeholder="Search by PR, title or model" aria-label="Search tasks">
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="tbl-tasks"></table></div>
+        <button type="button" class="more" id="task-more"></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap spread" id="long" aria-labelledby="long-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="long-h" tabindex="-1">The long view</h2>
+        <p>Codex logs go back to June. Claude Code deleted its own logs after 30 days until 21 October, when that was raised to a year, so its history starts in late September and fills in from here.</p>
+      </div>
+      <button type="button" class="ins-open" data-ins="long" aria-haspopup="dialog" aria-label="Insight for The long view">Insight</button>
+    </div>
+    <div class="spread-body pair">
+      <div>
+        <p class="chart-title">Tokens per month, by tool</p>
+        <p class="chart-note">Every token each tool read or wrote, from the per-call logs. Earlier months show Codex only because Claude Code's logs for them are gone. Claude Code's September starts on the 22nd, and the latest month runs to today.</p>
+        <div class="chart" id="chart-history" style="height: 320px"></div>
+      </div>
+      <div>
+        <p class="chart-title">What Codex spent its tokens on</p>
+        <p class="chart-note">Share of all Codex tokens for this repo. Auto-review is Codex Desktop checking its own actions before running them. Review is the cross-model critique Claude asks for with codex exec.</p>
+        <div class="roles" id="codex-roles"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot" id="method">
+  <div>
+    <h2>How it's measured</h2>
+    <p>Built from the Claude Code and Codex logs on Pritesh's Mac, git history and GitHub. To bring it up to date, ask Claude to refresh the Sable AI ledger.</p>
+  </div>
+  <div>
+    <dl class="defs">
+      <div><dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads, and output including thinking.</dd></div>
+      <div><dt>Task</dt><dd>A GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session.</dd></div>
+      <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code and Codex agent work.</dd></div>
+      <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again, usually after a long break or a compaction.</dd></div>
+      <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
+      <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
+    </dl>
+    <div class="prices">
+      <p class="chart-title">Prices used, US dollars per million tokens</p>
+      <div class="tbl-wrap"><table class="tbl" id="tbl-prices"></table></div>
+    </div>
+  </div>
+</footer>
+
+<dialog class="drawer" id="insights" aria-labelledby="ins-title">
+  <div class="drawer-in">
+    <div class="drawer-head">
+      <h2 id="ins-title" tabindex="-1" autofocus>Insights</h2>
+      <button type="button" class="ins-open" id="ins-close">Close</button>
+    </div>
+    <p class="drawer-note">What the numbers on this page suggest. Each reading is worked out from the data when the page loads, so it stays current after every refresh.</p>
+    <article class="ins" id="ins-overview">
+      <a class="ins-jump" href="#overview">Overview</a>
+      <h3 id="ins-head">Waiting for the data.</h3>
+      <p id="ins-lede"></p>
+    </article>
+    <article class="ins" id="ins-bill">
+      <a class="ins-jump" href="#bill">The bill</a>
+      <p id="bill-copy">Waiting for the data.</p>
+    </article>
+    <article class="ins" id="ins-work">
+      <a class="ins-jump" href="#work">The work</a>
+      <p id="work-copy">Not enough tasks per model to compare yet.</p>
+    </article>
+    <article class="ins" id="ins-cycles">
+      <a class="ins-jump" href="#cycles">The cycles</a>
+      <p id="cycles-copy">Waiting for the data.</p>
+    </article>
+    <article class="ins" id="ins-days">
+      <a class="ins-jump" href="#days">Over time</a>
+      <p id="days-copy">Waiting for the data.</p>
+    </article>
+    <article class="ins" id="ins-long">
+      <a class="ins-jump" href="#long">The long view</a>
+      <p id="long-copy">Waiting for the data.</p>
+    </article>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const cssv = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const T = {
+    ink: cssv('--ink'), surface: cssv('--surface'), hair: cssv('--hairline'), bone: cssv('--bone'),
+    ash: cssv('--ash'), dim: cssv('--dim'), spark: cssv('--spark'), ui: cssv('--ui'), display: cssv('--display'),
+  };
+
+  // Model groups in their fixed palette order. Colour follows the model, never its rank.
+  const GROUPS = [
+    { id: 'claude-opus-5-5', name: 'Opus 5.5', color: cssv('--m-opus55') },
+    { id: 'codex', name: 'Codex', color: cssv('--m-codex') },
+    { id: 'claude-sonnet-5-5', name: 'Sonnet 5.5', color: cssv('--m-sonnet55') },
+    { id: 'claude-opus-5', name: 'Opus 5', color: cssv('--m-opus5') },
+    { id: 'claude-opus-4-8', name: 'Opus 4.8', color: cssv('--m-opus48') },
+    { id: 'claude-sonnet-5', name: 'Sonnet 5', color: cssv('--m-sonnet5') },
+    { id: 'other', name: 'Other models', color: cssv('--m-other') },
+  ];
+  const GROUP = Object.fromEntries(GROUPS.map((g) => [g.id, g]));
+  const groupOf = (m) => (!m ? 'other' : m.startsWith('gpt-') || m.startsWith('codex') ? 'codex' : GROUP[m] ? m : 'other');
+
+  const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+  const F = {
+    usd: (v) => (v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en') : v.toFixed(2))),
+    usd0: (v) => (v == null ? '—' : '$' + Math.round(v).toLocaleString('en')),
+    big: (v) => (v == null ? '—' : Math.abs(v) >= 10000 ? compact.format(v) : Math.round(v).toLocaleString('en')),
+    int: (v) => (v == null ? '—' : Math.round(v).toLocaleString('en')),
+    pct: (v) => (v == null ? '—' : Math.round(v * 100) + '%'),
+    day: (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'),
+    dayLong: (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+    rate: (v) => '$' + v.toFixed(2),
+    one: (v) => (v == null ? '—' : (Math.round(v * 10) / 10).toLocaleString('en')),
+  };
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const median = (xs) => {
+    const s = xs.filter((x) => x != null).sort((a, b) => a - b);
+    const n = s.length;
+    return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+  };
+  const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const swatch = (color) => {
+    const s = el('span', 'sw');
+    s.style.background = color;
+    return s;
+  };
+  const isoDay = (unix) => {
+    const d = new Date(unix * 1000);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+  const dayNum = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
+  const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+
+  const load = (name) => fetch('data/' + name + '.json').then((r) => {
+    if (!r.ok) throw new Error(name + '.json returned ' + r.status);
+    return r.json();
+  });
+
+  Promise.all([Promise.all(['daily', 'tasks', 'prices', 'waveform'].map(load)), document.fonts.ready])
+    .then(([[daily, tasks, prices, wave]]) => start({ daily, tasks, prices, wave }))
+    .catch((err) => {
+      $('#scope').textContent = 'The ledger did not load. Its data files are missing or unreadable (' + err.message + '). Ask Claude to refresh the Sable AI ledger to publish them again.';
+    });
+  initInsights();
+
+  // ---------------------------------------------------------------- derive
+  function derive(D) {
+    const rows = D.wave.rows;
+    const firstDay = isoDay(rows[0][0]);
+    const lastDay = isoDay(rows[rows.length - 1][0]);
+    const P = Object.fromEntries(D.prices.map((p) => [p.model, p]));
+    const claude = D.daily.filter((r) => r.tool === 'Claude Code' && r.day >= firstDay);
+    const KINDS = ['Cache reads', '1-hour cache writes', '5-minute cache writes', 'Output and thinking', 'Fresh input'];
+    const byModel = new Map();
+    for (const r of claude) {
+      const q = P[r.model];
+      if (!q) continue;
+      const a = byModel.get(r.model) || [0, 0, 0, 0, 0];
+      a[0] += (r.cache_read * q.cache_read) / 1e6;
+      a[1] += (r.cw1h * q.cache_write_1h) / 1e6;
+      a[2] += (r.cw5 * q.cache_write_5m) / 1e6;
+      a[3] += (r.output * q.output) / 1e6;
+      a[4] += (r.input * q.input) / 1e6;
+      byModel.set(r.model, a);
+    }
+    const kindTotals = KINDS.map((_, i) => sum([...byModel.values()].map((a) => a[i])));
+    const written = sum(claude.map((r) => r.cw5 + r.cw1h));
+    const rebuildShare = written ? sum(claude.map((r) => r.rebuild_tokens)) / written : 0;
+    const total = sum(kindTotals);
+    const rereading = kindTotals[0] + kindTotals[1] + kindTotals[2];
+    const writing = kindTotals[3];
+
+    const all = D.daily.filter((r) => r.tool === 'Claude Code');
+    const end = all.reduce((m, r) => (r.day > m ? r.day : m), '');
+    const week = (lo, hi) => {
+      const t = { cost: 0, replies: 0, prompt: 0, rebuilds: 0, rebuildCost: 0 };
+      for (const r of all) {
+        const age = dayNum(end) - dayNum(r.day);
+        if (age < lo || age >= hi) continue;
+        t.cost += r.cost_usd || 0;
+        t.replies += r.replies;
+        t.prompt += r.input + r.cw5 + r.cw1h + r.cache_read;
+        t.rebuilds += r.rebuilds;
+        t.rebuildCost += P[r.model] ? (r.rebuild_tokens * P[r.model].cache_write_1h) / 1e6 : 0;
+      }
+      t.ctx = t.replies ? t.prompt / t.replies : null;
+      return t;
+    };
+    const w0 = week(0, 7);
+    const w1 = week(7, 14);
+
+    const tasks = D.tasks.map((t) => Object.assign({}, t, {
+      tokens: t.input + t.cache_write + t.cache_read + t.output + t.codex_tokens,
+      group: t.primary_model ? groupOf(t.primary_model) : null,
+    }));
+    const shipped = tasks.filter((t) => t.shipped && t.cost_usd > 0);
+    const ci = tasks.filter((t) => t.ci_first_pass === true || t.ci_first_pass === false);
+    return {
+      firstDay, lastDay, KINDS, byModel, kindTotals, total, rereading, writing, w0, w1, tasks, rebuildShare,
+      medianTask: median(shipped.map((t) => t.cost_usd)), shippedN: shipped.length,
+      ciN: ci.length, ciPass: ci.filter((t) => t.ci_first_pass).length,
+    };
+  }
+
+  // ---------------------------------------------------------------- start
+  const charts = [];
+  function start(D) {
+    const S = derive(D);
+    const ratio = S.writing ? S.rereading / S.writing : 0;
+    const r = Math.round(ratio);
+    $('#ins-head').textContent = ratio >= 1.5
+      ? 'Re-reading the conversation cost ' + (r <= 12 ? NUMBER_WORDS[r] : r) + ' times what the models wrote.'
+      : 'Writing cost more than re-reading the conversation.';
+    $('#ins-lede').replaceChildren(
+      el('b', null, F.usd0(S.total)), ' of Claude work at API prices since ' + F.day(S.firstDay) + '. ',
+      el('b', null, F.usd0(S.rereading)), ' of it went on reading and caching context, and ',
+      el('b', null, F.usd0(S.writing)), ' on what the models wrote. Keeping sessions short is the biggest lever.'
+    );
+    const lastCall = D.wave.rows[D.wave.rows.length - 1][0];
+    $('#scope').textContent = 'Claude Code and Codex usage on Sable, with Claude priced at API list rates. Data through '
+      + new Date(lastCall * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.';
+
+    // figures
+    const change = S.w1.cost ? S.w0.cost / S.w1.cost - 1 : null;
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    odometer($('#fig-total'), F.usd0(S.total));
+    $('#fig-total-label').textContent = 'Claude cost since ' + F.day(S.firstDay);
+    $('#fig-total-note').textContent = F.usd0(S.rereading) + ' reading and caching context, ' + F.usd0(S.writing) + ' output and thinking.';
+    odometer($('#fig-week'), F.usd(S.w0.cost));
+    $('#fig-week-note').textContent = 'At API prices. ' + (change == null ? 'Nothing logged the week before.'
+      : Math.abs(Math.round(change * 100)) + '% ' + (change < 0 ? 'less' : 'more') + ' than the 7 days before.');
+    odometer($('#fig-rebuild'), F.usd(S.w0.rebuildCost));
+    $('#fig-rebuild-note').textContent = plural(S.w0.rebuilds, 'rebuild', 'rebuilds') + ', priced at the 1-hour cache-write rate. '
+      + plural(S.w1.rebuilds, 'rebuild', 'rebuilds') + ' the week before.';
+    odometer($('#fig-task'), F.usd(S.medianTask));
+    $('#fig-task-note').textContent = 'Claude cost across all ' + S.shippedN + ' shipped tasks.';
+    odometer($('#fig-ctx'), F.big(S.w0.ctx));
+    $('#fig-ctx-note').textContent = 'Tokens each reply read, so lower is cheaper.' + (S.w1.ctx ? ' ' + F.big(S.w1.ctx) + ' the week before.' : '');
+
+    // readings for the Insights drawer
+    $('#bill-copy').replaceChildren(
+      'Of ', el('b', null, F.usd0(S.total)), ' since ' + F.day(S.firstDay) + ', reading from the cache took ',
+      el('b', null, F.usd0(S.kindTotals[0])), ' and writing to it took ', el('b', null, F.usd0(S.kindTotals[1] + S.kindTotals[2])), '. ',
+      el('b', null, F.pct(S.rebuildShare)), ' of the tokens written were rebuilds: replies that had to put the whole conversation back in the cache after a long break or a compaction. Shorter sessions make each rebuild smaller.'
+    );
+    workCopy(S);
+    daysCopy(D, S);
+    longCopy(D, S);
+
+    initWave(D, S);
+    charts.push(sankey(S), swarm(S), calendar(D, S), contextLine(D, S), weekly(S), monthly(D, S));
+    modelTable(D, S);
+    byType(S);
+    cycles(S);
+    taskTable(S);
+    codexRoles(D);
+    priceTable(D);
+
+    let pending = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(pending);
+      pending = requestAnimationFrame(() => {
+        charts.forEach((c) => c && c.resize());
+        sizeWave();
+        drawWave();
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- insights drawer
+  // Opened from the masthead (top of the list) or from a section's own button (that section's reading).
+  function initInsights() {
+    const dlg = $('#insights');
+    const open = (key) => {
+      if (!dlg.open) dlg.showModal();
+      const item = key && document.getElementById('ins-' + key);
+      if (item) {
+        item.scrollIntoView({ block: 'start' });
+        item.classList.add('flash');
+        setTimeout(() => item.classList.remove('flash'), 700);
+      } else dlg.scrollTop = 0;
+    };
+    document.querySelectorAll('[data-ins]').forEach((b) => b.addEventListener('click', () => open(b.dataset.ins)));
+    $('#ins-close').addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+    dlg.querySelectorAll('.ins-jump').forEach((a) => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.querySelector(a.getAttribute('href'));
+      dlg.close();
+      if (!target) return;
+      target.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth' });
+      const h = target.querySelector('h2');
+      if (h) h.focus({ preventScroll: true });
+    }));
+  }
+
+  // A rolling-digit counter. The figure is readable at rest; motion only spins the reels into place.
+  function odometer(target, text) {
+    target.setAttribute('aria-label', text);
+    const box = el('span', 'odo');
+    box.setAttribute('aria-hidden', 'true');
+    const reels = [];
+    for (const ch of text) {
+      if (/\d/.test(ch)) {
+        const slot = el('span', 'odo-slot');
+        const reel = el('span', 'odo-reel');
+        for (let i = 0; i < 20; i++) reel.appendChild(el('span', null, String(i % 10)));
+        slot.appendChild(reel);
+        box.appendChild(slot);
+        reels.push([reel, Number(ch)]);
+      } else box.appendChild(el('span', null, ch));
+    }
+    target.replaceChildren(box);
+    if (REDUCED || !window.gsap) {
+      reels.forEach(([reel, d]) => { reel.style.transform = 'translateY(' + -((10 + d) * 5) + '%)'; });
+      return;
+    }
+    reels.forEach(([reel, d], i) => {
+      gsap.fromTo(reel, { yPercent: -((d + 3) % 10) * 5 }, { yPercent: -(10 + d) * 5, duration: 1.6 + i * 0.12, ease: 'expo.out', delay: 0.2 });
+    });
+  }
+
+  // ---------------------------------------------------------------- waveform
+  const wave = { p: 1, hover: -1 };
+  function initWave(D, S) {
+    const W = D.wave;
+    wave.rows = W.rows;
+    wave.models = W.models;
+    wave.tasks = W.tasks;
+    wave.titles = new Map(D.tasks.map((t) => [t.task, t.title]));
+    wave.canvas = $('#wave');
+    wave.tip = $('#wave-tip');
+    const n = W.rows.length;
+    wave.maxUp = Math.max(1, ...W.rows.filter((r) => r[2] === 0).map((r) => r[3]));
+    wave.maxDown = Math.max(1, ...W.rows.filter((r) => r[2] === 1).map((r) => r[3]));
+    // Indices per colour, so each colour is one fillStyle change.
+    const byColor = new Map();
+    W.rows.forEach((r, i) => {
+      const g = r[2] === 1 ? 'codex' : groupOf(W.models[r[1]]);
+      if (!byColor.has(g)) byColor.set(g, []);
+      byColor.get(g).push(i);
+    });
+    wave.byColor = byColor;
+    wave.rebuilds = W.rows.map((r, i) => (r[6] ? i : -1)).filter((i) => i >= 0);
+    wave.days = [];
+    let prev = '';
+    W.rows.forEach((r, i) => {
+      const d = isoDay(r[0]);
+      if (d !== prev) { wave.days.push([i, d]); prev = d; }
+    });
+
+    const legend = $('#wave-legend');
+    const present = GROUPS.filter((g) => byColor.has(g.id));
+    legend.replaceChildren(...present.map((g) => {
+      const li = el('li');
+      li.append(swatch(g.color), g.name);
+      return li;
+    }));
+    const spark = el('li');
+    const ss = el('span', 'sw spark');
+    spark.append(ss, 'Cache rebuild');
+    legend.appendChild(spark);
+
+    sizeWave();
+    const c = wave.canvas;
+    const pick = (clientX) => {
+      const rect = c.getBoundingClientRect();
+      const x = clientX - rect.left;
+      if (x < wave.padL || x > wave.w - wave.padR) return -1;
+      return Math.max(0, Math.min(n - 1, Math.floor((x - wave.padL) / wave.step)));
+    };
+    c.addEventListener('pointermove', (e) => setHover(pick(e.clientX)));
+    c.addEventListener('pointerdown', (e) => setHover(pick(e.clientX)));
+    c.addEventListener('pointerleave', () => setHover(-1));
+    c.addEventListener('blur', () => setHover(-1));
+    c.addEventListener('focus', () => { if (wave.hover < 0) setHover(n - 1); });
+    c.addEventListener('keydown', (e) => {
+      const jump = e.shiftKey ? Math.max(1, Math.round(n / 40)) : 1;
+      let i = wave.hover < 0 ? n - 1 : wave.hover;
+      if (e.key === 'ArrowLeft') i -= jump;
+      else if (e.key === 'ArrowRight') i += jump;
+      else if (e.key === 'Home') i = 0;
+      else if (e.key === 'End') i = n - 1;
+      else return;
+      e.preventDefault();
+      setHover(Math.max(0, Math.min(n - 1, i)));
+    });
+
+    if (REDUCED || !window.gsap) { wave.p = 1; drawWave(); return; }
+    wave.p = 0;
+    gsap.to(wave, { p: 1, duration: 2.4, ease: 'power3.inOut', delay: 0.25, onUpdate: drawWave });
+  }
+
+  function sizeWave() {
+    const c = wave.canvas;
+    const w = c.clientWidth;
+    const h = c.clientHeight;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+    wave.ctx = c.getContext('2d');
+    wave.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    wave.w = w;
+    wave.h = h;
+    wave.padL = Math.max(16, Math.min(64, w * 0.045));
+    wave.padR = Math.max(16, Math.min(40, w * 0.03));
+    const top = 26;
+    const bottom = 30;
+    const plotH = h - top - bottom;
+    wave.k = plotH / (wave.maxUp + wave.maxDown);
+    wave.mid = top + wave.maxUp * wave.k;
+    wave.step = (w - wave.padL - wave.padR) / wave.rows.length;
+  }
+
+  function drawWave() {
+    const { ctx, w, h, k, mid, padL, padR, step, rows } = wave;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = '500 11px ' + T.ui;
+    ctx.textBaseline = 'middle';
+    // context gridlines, one scale above and below the line
+    const ticks = [250000, 500000, 750000, 1000000];
+    ctx.lineWidth = 1;
+    for (const v of ticks) {
+      for (const dir of [-1, 1]) {
+        const max = dir < 0 ? wave.maxUp : wave.maxDown;
+        if (v > max * 1.02) continue;
+        const y = Math.round(mid + dir * v * k) + 0.5;
+        ctx.strokeStyle = T.hair;
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = T.dim;
+        ctx.textAlign = 'right';
+        if (padL > 34) ctx.fillText(F.big(v), padL - 8, y);
+      }
+    }
+    // what the height measures
+    ctx.textAlign = 'right';
+    ctx.fillStyle = T.dim;
+    ctx.fillText('Tokens read per call', w - padR, 12);
+
+    const n = Math.floor(wave.p * rows.length);
+    const bw = Math.max(1, step * 0.92);
+    for (const [g, idx] of wave.byColor) {
+      ctx.fillStyle = GROUP[g].color;
+      ctx.globalAlpha = g === 'codex' ? 0.62 : 0.72;
+      for (const i of idx) {
+        if (i >= n) break;
+        const r = rows[i];
+        const hh = Math.max(1, r[3] * k);
+        const x = padL + i * step;
+        if (r[2] === 0) ctx.fillRect(x, mid - hh, bw, hh);
+        else ctx.fillRect(x, mid + 1, bw, hh);
+      }
+    }
+    // cache rebuild sparks
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = T.spark;
+    ctx.shadowColor = T.spark;
+    ctx.shadowBlur = 12;
+    for (const i of wave.rebuilds) {
+      if (i >= n) break;
+      const r = rows[i];
+      const hh = Math.max(2, r[3] * k);
+      const x = padL + i * step;
+      ctx.fillRect(x, mid - hh, Math.max(1.5, bw), hh);
+      ctx.beginPath();
+      ctx.arc(x + bw / 2, mid - hh, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    // baseline
+    ctx.fillStyle = T.bone;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(padL, Math.round(mid), (w - padL - padR) * wave.p, 1);
+    ctx.globalAlpha = 1;
+    // direct labels for the two halves, beside the line and outlined so they read over the bars
+    ctx.font = '600 12px ' + T.ui;
+    ctx.textAlign = 'left';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = T.ink;
+    for (const [name, y] of [['Claude Code', mid - 12], ['Codex', mid + 14]]) {
+      ctx.strokeText(name, padL + 6, y);
+      ctx.fillStyle = T.bone;
+      ctx.fillText(name, padL + 6, y);
+    }
+    // day ticks and labels along the bottom
+    ctx.font = '500 11px ' + T.ui;
+    ctx.textAlign = 'center';
+    let lastLabel = -1e9;
+    for (const [i, d] of wave.days) {
+      const x = padL + i * step;
+      ctx.fillStyle = T.hair;
+      ctx.fillRect(Math.round(x), h - 26, 1, 6);
+      if (x - lastLabel > 62 && x < w - padR - 20) {
+        ctx.fillStyle = T.dim;
+        ctx.fillText(F.day(d), x, h - 12);
+        lastLabel = x;
+      }
+    }
+    // scrub line
+    if (wave.hover >= 0) {
+      const r = rows[wave.hover];
+      const x = padL + wave.hover * step + bw / 2;
+      const hh = Math.max(1, r[3] * k);
+      ctx.fillStyle = T.bone;
+      ctx.fillRect(Math.round(x), 20, 1, h - 46);
+      ctx.beginPath();
+      ctx.arc(x, r[2] === 0 ? mid - hh : mid + hh, 4, 0, Math.PI * 2);
+      ctx.fillStyle = r[2] === 1 ? GROUP.codex.color : GROUP[groupOf(wave.models[r[1]])].color;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = T.ink;
+      ctx.stroke();
+    }
+  }
+
+  const ROLES = ['', 'Subagent', 'Review', 'Auto-review'];
+  function setHover(i) {
+    wave.hover = i;
+    drawWave();
+    const tip = wave.tip;
+    if (i < 0) { tip.hidden = true; return; }
+    const r = wave.rows[i];
+    const model = wave.models[r[1]];
+    const g = r[2] === 1 ? GROUP.codex : GROUP[groupOf(model)];
+    const when = new Date(r[0] * 1000).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const who = el('div', 'who');
+    const name = (r[2] === 1 ? 'Codex, ' : 'Claude Code, ') + (g.id === 'codex' || g.id === 'other' ? model : g.name);
+    who.append(swatch(g.color), name + (ROLES[r[7]] ? ' (' + ROLES[r[7]].toLowerCase() + ')' : ''));
+    const row = (a, b) => {
+      const d = el('div', 'row');
+      d.append(el('span', null, a), el('span', null, b));
+      return d;
+    };
+    const parts = [el('div', 'when', when), who, row('Tokens read', F.big(r[3])), row('Output', F.big(r[4]) + ' tokens')];
+    if (r[8] >= 0) {
+      const key = wave.tasks[r[8]];
+      const title = wave.titles.get(key);
+      const short = title && title.length > 70 ? title.slice(0, 69) + '…' : title;
+      parts.push(el('div', 'task-line', key + (short && short !== key ? ': ' + short : '')));
+    }
+    if (r[6]) parts.push(el('div', 'flag', 'Cache rebuild: wrote ' + F.big(r[5]) + ' tokens to the cache again'));
+    tip.replaceChildren(...parts);
+    tip.hidden = false;
+    const x = wave.padL + i * wave.step;
+    const fw = wave.canvas.clientWidth;
+    let left = x + 16;
+    if (left + tip.offsetWidth > fw - 8) left = Math.max(8, x - tip.offsetWidth - 16);
+    tip.style.left = left + 'px';
+    tip.style.top = '8px';
+  }
+
+  // ---------------------------------------------------------------- ECharts shared styling
+  const TIP = {
+    confine: true, backgroundColor: '#1d1a17', borderColor: '#35312b', borderWidth: 1, padding: [8, 12],
+    textStyle: { color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: 12 },
+    extraCssText: 'border-radius:6px;box-shadow:0 16px 40px rgba(0,0,0,.5);',
+  };
+  const TEXT = { fontFamily: 'Archivo, sans-serif', color: '#a8a294' };
+  const AXIS_LABEL = { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11 };
+  const make = (id) => {
+    const node = document.getElementById(id);
+    return echarts.init(node, null, { renderer: 'canvas' });
+  };
+  const base = () => ({ animation: !REDUCED, animationDuration: 1100, animationEasing: 'cubicOut', textStyle: TEXT, backgroundColor: 'transparent' });
+
+  // ---------------------------------------------------------------- the bill (sankey)
+  function sankey(S) {
+    // Models under 3% of the bill fold into one node, so small labels don't pile up.
+    const folded = new Map();
+    for (const [m, a] of S.byModel) {
+      const key = sum(a) < S.total * 0.03 ? 'other' : m;
+      const acc = folded.get(key) || [0, 0, 0, 0, 0];
+      a.forEach((v, i) => { acc[i] += v; });
+      folded.set(key, acc);
+    }
+    const models = [...folded.entries()].map(([m, a]) => [m, a, sum(a)]).sort((x, y) => (x[0] === 'other') - (y[0] === 'other') || y[2] - x[2]);
+    const nodes = [];
+    const links = [];
+    const tableRows = [];
+    for (const [m, a, t] of models) {
+      if (t < 1) continue;
+      const g = GROUP[groupOf(m)];
+      const name = g.name;
+      nodes.push({ name, itemStyle: { color: g.color }, value: t });
+      a.forEach((v, i) => { if (v > 0.005) links.push({ source: name, target: S.KINDS[i], value: v }); });
+      tableRows.push([name, ...a, t]);
+    }
+    S.KINDS.forEach((k) => { if (links.some((l) => l.target === k)) nodes.push({ name: k, itemStyle: { color: '#efe9dc' } }); });
+    const narrow = window.innerWidth < 640;
+    const chart = make('chart-sankey');
+    chart.setOption(Object.assign(base(), {
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'item',
+        formatter: (p) => (p.dataType === 'edge'
+          ? esc(p.data.source) + '<br><b>' + F.usd(p.data.value) + '</b> on ' + esc(p.data.target.toLowerCase())
+          : esc(p.name) + '<br><b>' + F.usd(p.value) + '</b>'),
+      }),
+      series: [{
+        type: 'sankey', left: narrow ? 4 : 8, right: narrow ? 122 : 176, top: 8, bottom: 28,
+        nodeWidth: 10, nodeGap: narrow ? 12 : 18, layoutIterations: 0, draggable: false,
+        emphasis: { focus: 'adjacency' },
+        lineStyle: { color: 'gradient', curveness: 0.55, opacity: 0.42 },
+        itemStyle: { borderWidth: 0 },
+        label: {
+          color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: narrow ? 11 : 13,
+          formatter: (p) => '{n|' + p.name + '}\n{v|' + (p.value < 10 ? F.usd(p.value) : F.usd0(p.value)) + '}',
+          rich: { n: { color: '#efe9dc', fontSize: narrow ? 11 : 13, fontFamily: 'Archivo, sans-serif', lineHeight: 17 }, v: { color: '#a8a294', fontSize: 11, fontFamily: 'Archivo, sans-serif', lineHeight: 15 } },
+        },
+        data: nodes, links,
+      }],
+    }));
+    // the numbers behind it
+    const tbl = $('#tbl-sankey');
+    const head = el('tr');
+    ['Model', ...S.KINDS, 'Total'].forEach((h, i) => head.appendChild(el('th', i ? 'num' : null, h)));
+    const thead = el('thead');
+    thead.appendChild(head);
+    const tbody = el('tbody');
+    tableRows.forEach((r) => {
+      const tr = el('tr');
+      r.forEach((v, i) => tr.appendChild(el('td', i ? 'num' : null, i ? F.usd(v) : v)));
+      tbody.appendChild(tr);
+    });
+    tbl.replaceChildren(thead, tbody);
+    return chart;
+  }
+
+  // ---------------------------------------------------------------- the work (beeswarm)
+  function swarm(S) {
+    const led = S.tasks.filter((t) => t.group && t.tokens > 0);
+    const cats = GROUPS.filter((g) => led.some((t) => t.group === g.id));
+    const node = $('#chart-swarm');
+    const rowH = 76;
+    node.style.height = cats.length * rowH + 64 + 'px';
+    const chart = make('chart-swarm');
+    const xs = led.map((t) => t.tokens);
+    const lo = Math.pow(10, Math.floor(Math.log10(Math.min(...xs))));
+    const hi = Math.pow(10, Math.ceil(Math.log10(Math.max(...xs))));
+    chart.setOption(Object.assign(base(), {
+      grid: { left: 92, right: 16, top: 8, bottom: 40 },
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'item',
+        formatter: (p) => {
+          const t = p.data.task;
+          return '<div style="max-width:260px;white-space:normal"><b>' + esc(t.task) + '</b> ' + esc(t.title) + '</div>'
+            + '<div style="color:#a8a294;margin-top:4px">' + F.big(t.tokens) + ' tokens, ' + F.usd(t.cost_usd) + ' Claude cost<br>'
+            + t.prompts + ' prompts, ' + (t.lines == null ? 'size unknown' : F.int(t.lines) + ' lines changed') + '</div>';
+        },
+      }),
+      xAxis: {
+        type: 'log', logBase: 10, min: lo, max: hi,
+        axisLine: { show: false }, axisTick: { show: false },
+        splitLine: { lineStyle: { color: '#35312b', width: 1 } },
+        axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => F.big(v) }),
+      },
+      yAxis: {
+        type: 'category', data: cats.map((g) => g.name), inverse: true,
+        jitter: rowH * 0.9, jitterOverlap: false, jitterMargin: 2,
+        axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false },
+        axisLabel: { color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: 13, margin: 14 },
+      },
+      series: cats.map((g) => ({
+        type: 'scatter', name: g.name, symbolSize: 10,
+        itemStyle: { color: g.color, borderColor: '#131110', borderWidth: 2, opacity: 0.95 },
+        emphasis: { scale: 1.7, itemStyle: { borderColor: '#efe9dc' } },
+        data: led.filter((t) => t.group === g.id).map((t) => ({ value: [t.tokens, g.name], task: t })),
+      })),
+    }));
+    return chart;
+  }
+
+  function modelTable(D, S) {
+    const reuse = new Map();
+    for (const r of D.daily) {
+      const g = r.tool === 'Codex' ? 'codex' : groupOf(r.model);
+      const a = reuse.get(g) || { read: 0, write: 0 };
+      a.read += r.cache_read;
+      a.write += r.cw5 + r.cw1h;
+      reuse.set(g, a);
+    }
+    const cols = [
+      ['Lead model', null],
+      ['Tasks', 'num'],
+      ['Cost per task', 'num', 'Median Claude API-equivalent cost of the tasks this model led'],
+      ['Tokens per task', 'num opt', 'Median tokens read and written per task, Claude Code and Codex together'],
+      ['Prompts per task', 'num opt', 'Median number of messages you typed per task'],
+      ['CI first try', 'num', 'Share of its tasks whose first CI run passed'],
+      ['Later fixed', 'num opt', 'Share of its shipped tasks where a fix commit on main touched the same source files within 14 days'],
+      ['Reads per write', 'num opt', 'Cached tokens read for every token written to the cache, across all its replies. Higher means the cache paid off more'],
+    ];
+    const thead = el('thead');
+    const hr = el('tr');
+    cols.forEach(([h, c, tip]) => {
+      const th = el('th', c, h);
+      if (tip) th.title = tip;
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    const tbody = el('tbody');
+    for (const g of GROUPS) {
+      const led = S.tasks.filter((t) => t.group === g.id);
+      if (!led.length) continue;
+      const ci = led.filter((t) => t.ci_first_pass === true || t.ci_first_pass === false);
+      const done = led.filter((t) => t.rework != null);
+      const ru = reuse.get(g.id);
+      const tr = el('tr', led.length < 5 ? 'faded' : null);
+      const who = el('td');
+      const w = el('span', 'who');
+      w.append(swatch(g.color), g.name);
+      who.appendChild(w);
+      tr.append(
+        who,
+        el('td', 'num', String(led.length)),
+        el('td', 'num', g.id === 'codex' ? '—' : F.usd(median(led.map((t) => t.cost_usd)))),
+        el('td', 'num opt', F.big(median(led.map((t) => t.tokens)))),
+        el('td', 'num opt', String(median(led.map((t) => t.prompts)))),
+        el('td', 'num', ci.length ? F.pct(ci.filter((t) => t.ci_first_pass).length / ci.length) : '—'),
+        el('td', 'num opt', done.length ? F.pct(done.filter((t) => t.rework > 0).length / done.length) : '—'),
+        el('td', 'num opt', ru && ru.write ? Math.round(ru.read / ru.write) + '×' : '—')
+      );
+      tbody.appendChild(tr);
+    }
+    $('#tbl-models').replaceChildren(thead, tbody);
+  }
+
+  // The two Claude models that led at least 5 tasks each, most tasks first.
+  const KIND_NAMES = { feat: 'Features', fix: 'Fixes', refactor: 'Refactors', test: 'Tests', docs: 'Docs', chore: 'Chores', perf: 'Performance', ci: 'CI', build: 'Build', style: 'Style', revert: 'Reverts', other: 'Other' };
+  function topTwo(S) {
+    return GROUPS.filter((g) => g.id !== 'codex' && g.id !== 'other')
+      .map((g) => ({ g, led: S.tasks.filter((t) => t.group === g.id && t.cost_usd > 0) }))
+      .filter((x) => x.led.length >= 5)
+      .sort((a, b) => b.led.length - a.led.length)
+      .slice(0, 2);
+  }
+
+  function workCopy(S) {
+    const pair = topTwo(S);
+    if (pair.length < 2) return;
+    const stat = (x) => {
+      const ci = x.led.filter((t) => t.ci_first_pass === true || t.ci_first_pass === false);
+      return { name: x.g.name, n: x.led.length, med: median(x.led.map((t) => t.cost_usd)), ci: ci.length ? ci.filter((t) => t.ci_first_pass).length / ci.length : null };
+    };
+    let [a, b] = pair.map(stat);
+    if (a.med > b.med) [a, b] = [b, a];
+    $('#work-copy').replaceChildren(
+      el('b', null, a.name), ' led ' + a.n + ' tasks at a median of ', el('b', null, F.usd(a.med)), ' each. ',
+      el('b', null, b.name), ' led ' + b.n + ' at ', el('b', null, F.usd(b.med)), ', ' + (b.med / a.med).toFixed(1) + ' times as much. ',
+      'Their first-time CI pass rates were ' + F.pct(a.ci) + ' and ' + F.pct(b.ci) + '. ',
+      b.name + ' was probably given harder work, so check The same kind of work table in The work before switching.'
+    );
+  }
+
+  function byType(S) {
+    const pair = topTwo(S);
+    if (pair.length < 2) return;
+    const types = new Map();
+    for (const x of pair) {
+      for (const t of x.led) {
+        const k = t.type || 'other';
+        if (!types.has(k)) types.set(k, new Map());
+        const m = types.get(k);
+        if (!m.has(x.g.id)) m.set(x.g.id, []);
+        m.get(x.g.id).push(t.cost_usd);
+      }
+    }
+    const count = (m) => sum([...m.values()].map((v) => v.length));
+    const rows = [...types.entries()].sort((p, q) => count(q[1]) - count(p[1]));
+    const thead = el('thead');
+    const hr = el('tr');
+    hr.appendChild(el('th', null, 'Kind of work'));
+    pair.forEach((x) => {
+      const th = el('th', 'num');
+      const w = el('span', 'who');
+      w.append(swatch(x.g.color), x.g.name);
+      th.appendChild(w);
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    const tbody = el('tbody');
+    rows.forEach(([k, m]) => {
+      const tr = el('tr');
+      tr.appendChild(el('td', null, KIND_NAMES[k] || k));
+      pair.forEach((x) => {
+        const v = m.get(x.g.id);
+        tr.appendChild(el('td', 'num', v ? F.usd(median(v)) + ' (' + v.length + ')' : '—'));
+      });
+      tbody.appendChild(tr);
+    });
+    $('#tbl-bytype').replaceChildren(thead, tbody);
+    $('#bytype-block').hidden = false;
+  }
+
+  // ---------------------------------------------------------------- the cycles
+  const CYCLE_METRICS = [
+    { key: 'prompts', label: 'Prompts you typed' },
+    { key: 'test_runs', label: 'Test runs' },
+    { key: 'test_failures', label: 'Failed test runs', note: 'Includes the failures TDD writes on purpose' },
+    { key: 'review_runs', label: 'Review rounds', note: 'Codex or agy critiques' },
+    { key: 'commits', label: 'Commits' },
+    { key: 'ci_cycles', label: 'CI runs', note: 'Commits CI ran on' },
+    { key: 'active_minutes', label: 'Active minutes', note: 'Pauses over 5 minutes not counted' },
+  ];
+  const mean = (xs) => {
+    const v = xs.filter((x) => x != null);
+    return v.length ? sum(v) / v.length : null;
+  };
+  function cycles(S) {
+    const all = S.tasks;
+    const ci = all.filter((t) => t.ci_cycles > 0);
+    const ciRuns = sum(ci.map((t) => t.ci_cycles));
+    const ciFails = sum(ci.map((t) => t.ci_failures || 0));
+    const perTask = F.one(ci.length ? ciRuns / ci.length : null);
+    const pair = topTwo(S);
+    const copy = [
+      'On average CI ran ', el('b', null, perTask), (perTask === '1' ? ' time' : ' times') + ' per task and failed ',
+      el('b', null, String(ciFails)), ' of ' + ciRuns + ' runs, so the loops happen before you push: ',
+      el('b', null, F.one(mean(all.map((t) => t.test_runs)))), ' test runs, ',
+      el('b', null, F.one(mean(all.map((t) => t.review_runs)))), ' review rounds and ',
+      el('b', null, F.one(mean(all.map((t) => t.prompts)))), ' prompts per task.',
+    ];
+    if (pair.length === 2) {
+      const [a, b] = pair.map((x) => ({ name: x.g.name, tests: mean(x.led.map((t) => t.test_runs)) }));
+      copy.push(' ' + a.name + ' ran ' + F.one(a.tests) + ' test runs per task and ' + b.name + ' ran ' + F.one(b.tests) + '.');
+    }
+    $('#cycles-copy').replaceChildren(...copy);
+    const box = $('#cycles-pairs');
+    if (pair.length < 2) {
+      box.textContent = 'Not enough tasks per model to compare yet.';
+      return;
+    }
+    $('#cycles-legend').replaceChildren(...pair.map((x) => {
+      const li = el('li');
+      li.append(swatch(x.g.color), x.g.name + ', ' + x.led.length + ' tasks');
+      return li;
+    }));
+    box.replaceChildren(...CYCLE_METRICS.map((m) => {
+      const vals = pair.map((x) => mean(x.led.map((t) => t[m.key])));
+      const max = Math.max(0, ...vals.filter((v) => v != null)) || 1;
+      const row = el('div', 'pair-row');
+      const label = el('div', 'pair-label', m.label);
+      if (m.note) label.appendChild(el('small', null, m.note));
+      const bars = el('div', 'pair-bars');
+      pair.forEach((x, i) => {
+        const v = vals[i];
+        const shown = m.key === 'active_minutes' ? F.int(v) : F.one(v);
+        const b = el('div', 'pair-bar');
+        b.title = x.g.name + ': ' + shown + ' ' + m.label.toLowerCase() + ' per task';
+        const track = el('span', 'track');
+        const bar = el('i');
+        bar.style.width = (v ? (v / max) * 100 : 0) + '%';
+        bar.style.background = x.g.color;
+        track.appendChild(bar);
+        b.append(track, el('span', null, shown));
+        bars.appendChild(b);
+      });
+      row.append(label, bars);
+      return row;
+    }));
+  }
+
+  // ---------------------------------------------------------------- cost per shipped task, week by week
+  const monday = (iso) => {
+    const d = new Date(iso + 'T12:00:00');
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return isoDay(d.getTime() / 1000);
+  };
+  // Shipped tasks with a Claude cost, grouped by the Monday of the week they shipped, oldest first.
+  function shippedWeeks(S) {
+    const shipped = S.tasks.filter((t) => t.shipped && t.shipped >= S.firstDay && t.cost_usd > 0);
+    const weeks = [...new Set(shipped.map((t) => monday(t.shipped)))].sort();
+    return { shipped, weeks, byWeek: new Map(weeks.map((w) => [w, shipped.filter((t) => monday(t.shipped) === w)])) };
+  }
+
+  function daysCopy(D, S) {
+    const byDay = new Map();
+    for (const r of D.daily) {
+      if (r.tool !== 'Claude Code' || r.day < S.firstDay || r.day > S.lastDay) continue;
+      byDay.set(r.day, (byDay.get(r.day) || 0) + (r.cost_usd || 0));
+    }
+    const span = dayNum(S.lastDay) - dayNum(S.firstDay) + 1;
+    const worked = [...byDay.values()].filter((v) => v > 0).length;
+    const copy = ['Claude Code worked on ', el('b', null, String(worked)), ' of the ' + span + ' days since ' + F.day(S.firstDay) + '. '];
+    const top = [...byDay.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (top) copy.push('The busiest was ' + F.dayLong(top[0]) + ', at ', el('b', null, F.usd(top[1])), '. ');
+    // Compare only weeks with enough shipped tasks for a median to mean something.
+    const { weeks, byWeek } = shippedWeeks(S);
+    const full = weeks.filter((w) => byWeek.get(w).length >= 3);
+    if (full.length >= 2) {
+      const med = (w) => median(byWeek.get(w).map((t) => t.cost_usd));
+      const a = full[0], b = full[full.length - 1];
+      copy.push('The median shipped task cost ', el('b', null, F.usd(med(a))), ' in the week of ' + F.day(a) + ' and ',
+        el('b', null, F.usd(med(b))), ' in the week of ' + F.day(b) + '.');
+    }
+    $('#days-copy').replaceChildren(...copy);
+  }
+
+  function longCopy(D, S) {
+    const tok = (r) => r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
+    const names = { agent: 'agent work', 'auto-review': 'auto-review', review: 'review' };
+    const roles = new Map();
+    let claude = 0, codexSince = 0, codexFrom = null;
+    for (const r of D.daily) {
+      if (r.tool === 'Codex') {
+        roles.set(r.role, (roles.get(r.role) || 0) + tok(r));
+        if (r.day >= S.firstDay) codexSince += tok(r);
+        if (!codexFrom || r.day < codexFrom) codexFrom = r.day;
+      } else if (r.tool === 'Claude Code' && r.day >= S.firstDay) claude += tok(r);
+    }
+    const copy = ['Since ' + F.day(S.firstDay) + ', Claude Code read and wrote ', el('b', null, F.big(claude)), ' tokens and Codex ',
+      el('b', null, F.big(codexSince)), ', so Codex was ' + F.pct(codexSince / ((claude + codexSince) || 1)) + ' of the total. '];
+    const all = sum([...roles.values()]);
+    if (all) {
+      const parts = [...roles.entries()].sort((a, b) => b[1] - a[1]).map(([k, v], i) => (names[k] || k) + (i ? ' ' : ' took ') + F.pct(v / all));
+      const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
+      copy.push('Of everything Codex used since ' + F.day(codexFrom) + ', ' + list + '.');
+    }
+    $('#long-copy').replaceChildren(...copy);
+  }
+
+  function weekly(S) {
+    const { shipped, weeks, byWeek } = shippedWeeks(S);
+    const cat = (w) => 'w/c ' + F.day(w);
+    const counts = new Map(weeks.map((w) => [cat(w), byWeek.get(w).length]));
+    const lead = (t) => t.group || 'other';
+    const groups = GROUPS.filter((g) => shipped.some((t) => lead(t) === g.id));
+    const chart = make('chart-weekly');
+    chart.setOption(Object.assign(base(), {
+      grid: { left: 52, right: 24, top: 40, bottom: 48 },
+      legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, itemGap: 16, textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'item',
+        formatter: (p) => {
+          if (p.seriesName === 'Weekly median') return esc(p.value[0]) + '<br>Median <b>' + F.usd(p.value[1]) + '</b> across ' + counts.get(p.value[0]) + ' tasks';
+          const t = p.data.task;
+          return '<div style="max-width:260px;white-space:normal"><b>' + esc(t.task) + '</b> ' + esc(t.title) + '</div>'
+            + '<div style="color:#a8a294;margin-top:4px">' + F.usd(t.cost_usd) + ' Claude cost, shipped ' + F.day(t.shipped) + '</div>';
+        },
+      }),
+      xAxis: {
+        type: 'category', data: weeks.map(cat), jitter: 70, jitterOverlap: false, jitterMargin: 2,
+        axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false },
+        axisLabel: Object.assign({}, AXIS_LABEL, { lineHeight: 15, formatter: (v) => v + '\n' + counts.get(v) + (counts.get(v) === 1 ? ' task' : ' tasks') }),
+      },
+      yAxis: { type: 'value', splitNumber: 4, axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => '$' + v }), splitLine: { lineStyle: { color: '#35312b' } } },
+      series: [
+        ...groups.map((g) => ({
+          type: 'scatter', name: g.name, symbolSize: 9,
+          itemStyle: { color: g.color, borderColor: '#131110', borderWidth: 2, opacity: 0.95 },
+          emphasis: { scale: 1.6, itemStyle: { borderColor: '#efe9dc' } },
+          data: shipped.filter((t) => lead(t) === g.id).map((t) => ({ value: [cat(monday(t.shipped)), t.cost_usd], task: t })),
+        })),
+        {
+          type: 'line', name: 'Weekly median', z: 5, symbol: 'rect', symbolSize: [46, 3], showSymbol: true,
+          lineStyle: { opacity: 0 }, itemStyle: { color: '#efe9dc' },
+          label: { show: true, position: 'right', distance: 6, color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: 11, formatter: (p) => F.usd(p.value[1]) },
+          data: weeks.map((w) => [cat(w), Math.round(median(byWeek.get(w).map((t) => t.cost_usd)) * 100) / 100]),
+        },
+      ],
+    }));
+    return chart;
+  }
+
+  // ---------------------------------------------------------------- the days
+  const RAMP = ['#33201b', '#5e2a20', '#8f3526', '#c0442f', '#ec6a4b', '#ffa585'];
+  function calendar(D, S) {
+    const byDay = new Map();
+    for (const r of D.daily) {
+      if (r.tool !== 'Claude Code') continue;
+      byDay.set(r.day, (byDay.get(r.day) || 0) + (r.cost_usd || 0));
+    }
+    const start = S.firstDay;
+    const data = [...byDay.entries()].filter(([d]) => d >= start && d <= S.lastDay).map(([d, v]) => [d, Math.round(v * 100) / 100]);
+    const max = Math.max(1, ...data.map((d) => d[1]));
+    const chart = make('chart-cal');
+    chart.setOption(Object.assign(base(), {
+      tooltip: Object.assign({}, TIP, { formatter: (p) => F.dayLong(p.value[0]) + '<br><b>' + F.usd(p.value[1]) + '</b> of Claude work' }),
+      visualMap: {
+        type: 'continuous', min: 0, max, orient: 'horizontal', left: 34, bottom: 0, itemWidth: 10, itemHeight: 140,
+        calculable: false, text: [F.usd0(max), '$0'], textGap: 8, textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 11 },
+        inRange: { color: RAMP },
+      },
+      calendar: {
+        range: [start, S.lastDay], orient: 'horizontal', top: 26, left: 34, right: 6, bottom: 48, cellSize: ['auto', 'auto'],
+        splitLine: { show: false },
+        itemStyle: { color: '#1d1a17', borderColor: '#131110', borderWidth: 3 },
+        dayLabel: { firstDay: 1, nameMap: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11 },
+        monthLabel: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 },
+        yearLabel: { show: false },
+      },
+      series: [{ type: 'heatmap', coordinateSystem: 'calendar', data, itemStyle: { borderColor: '#131110', borderWidth: 3, borderRadius: 3 } }],
+    }));
+    return chart;
+  }
+
+  function contextLine(D, S) {
+    const byDay = new Map();
+    for (const r of D.daily) {
+      if (r.tool !== 'Claude Code' || r.role !== 'main' || r.day < S.firstDay) continue;
+      const a = byDay.get(r.day) || { replies: 0, prompt: 0, rebuilds: 0 };
+      a.replies += r.replies;
+      a.prompt += r.input + r.cw5 + r.cw1h + r.cache_read;
+      a.rebuilds += r.rebuilds;
+      byDay.set(r.day, a);
+    }
+    // A real time axis: every calendar day is present, and days without work break the line.
+    const present = [...byDay.keys()].sort();
+    const at = (d) => Date.parse(d + 'T12:00:00');
+    const avg = (d) => (byDay.has(d) ? Math.round(byDay.get(d).prompt / byDay.get(d).replies) : null);
+    const allDays = [];
+    for (let d = new Date(at(present[0])); isoDay(d.getTime() / 1000) <= present[present.length - 1]; d.setDate(d.getDate() + 1)) {
+      allDays.push(isoDay(d.getTime() / 1000));
+    }
+    const line = allDays.map((d) => [at(d), avg(d)]);
+    const sparks = present.filter((d) => byDay.get(d).rebuilds > 0).map((d) => [at(d), avg(d), byDay.get(d).rebuilds]);
+    const chart = make('chart-ctx');
+    chart.setOption(Object.assign(base(), {
+      grid: { left: 46, right: 10, top: 34, bottom: 28 },
+      legend: { top: 0, left: 0, itemWidth: 14, itemHeight: 8, textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 }, data: ['Context per reply', 'Cache rebuilds'] },
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: '#a8a294', width: 1 } },
+        formatter: (ps) => {
+          const d = isoDay(ps[0].value[0] / 1000);
+          const b = byDay.get(d);
+          if (!b) return F.dayLong(d) + '<br>No Claude Code work';
+          return F.dayLong(d) + '<br><b>' + F.big(avg(d)) + '</b> tokens per reply<br>' + b.replies + ' replies' + (b.rebuilds ? ', ' + b.rebuilds + ' cache rebuilds' : '');
+        },
+      }),
+      xAxis: {
+        type: 'time', splitNumber: 5, axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false }, splitLine: { show: false },
+        axisLabel: Object.assign({}, AXIS_LABEL, { hideOverlap: true, formatter: (v) => F.day(isoDay(v / 1000)) }),
+      },
+      yAxis: { type: 'value', splitNumber: 3, axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => F.big(v) }), splitLine: { lineStyle: { color: '#35312b' } } },
+      series: [
+        {
+          name: 'Context per reply', type: 'line', data: line, connectNulls: false, symbol: 'circle', symbolSize: 5, showSymbol: false,
+          lineStyle: { width: 2, color: '#efe9dc', cap: 'round', join: 'round' }, itemStyle: { color: '#efe9dc' },
+          areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(239,233,220,0.16)' }, { offset: 1, color: 'rgba(239,233,220,0)' }]) },
+        },
+        {
+          name: 'Cache rebuilds', type: 'scatter', data: sparks, symbolSize: (v) => 8 + v[2] * 2.5,
+          itemStyle: { color: '#ff6b4a', borderColor: '#131110', borderWidth: 2, shadowBlur: 10, shadowColor: '#ff6b4a' }, z: 3,
+        },
+      ],
+    }));
+    return chart;
+  }
+
+  // ---------------------------------------------------------------- every task
+  const taskState = { sort: 'cost_usd', dir: -1, all: false };
+  const TASK_COLS = [
+    { key: 'task', label: 'Task', render: (t) => {
+      const s = el('span', 'code', t.kind === 'Commit' ? 'Direct commit' : t.kind === 'Branch' ? 'Unmerged branch' : t.task);
+      s.title = t.task;
+      return s;
+    }, sort: (t) => t.task },
+    { key: 'title', label: 'What changed', cls: 'title', render: (t) => {
+      const wrap = el('span', 'titled');
+      const g = GROUP[t.group || 'other'];
+      const s = swatch(g.color);
+      s.title = t.group ? 'Led by ' + g.name : 'No lead model';
+      s.setAttribute('aria-label', s.title);
+      s.setAttribute('role', 'img');
+      wrap.appendChild(s);
+      if (!t.url) wrap.appendChild(el('span', null, t.title));
+      else {
+        const a = el('a', null, t.title);
+        a.href = t.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        wrap.appendChild(a);
+      }
+      return wrap;
+    }, sort: (t) => t.title },
+    { key: 'cost_usd', label: 'Claude cost', cls: 'num', render: (t) => {
+      const w = el('span', 'costbar');
+      const bar = el('i');
+      bar.style.width = Math.max(2, (t.cost_usd / taskState.max) * 72) + 'px';
+      bar.style.background = t.group ? GROUP[t.group].color : T.dim;
+      w.append(el('span', null, F.usd(t.cost_usd)), bar);
+      return w;
+    }, sort: (t) => t.cost_usd },
+    { key: 'prompts', label: 'Prompts', cls: 'num', render: (t) => document.createTextNode(String(t.prompts)), sort: (t) => t.prompts },
+    { key: 'commits', label: 'Commits', cls: 'num opt', render: (t) => document.createTextNode(t.commits == null ? '—' : String(t.commits)), sort: (t) => (t.commits == null ? -1 : t.commits) },
+    { key: 'test_runs', label: 'Test runs', cls: 'num opt', render: (t) => document.createTextNode(t.test_runs ? t.test_runs + (t.test_failures ? ', ' + t.test_failures + ' failed' : '') : '—'), sort: (t) => t.test_runs },
+    { key: 'review_runs', label: 'Reviews', cls: 'num opt', render: (t) => document.createTextNode(t.review_runs ? String(t.review_runs) : '—'), sort: (t) => t.review_runs },
+    { key: 'ci_cycles', label: 'CI runs', cls: 'opt', render: (t) => document.createTextNode(t.ci_cycles ? t.ci_cycles + (t.ci_failures ? ', ' + t.ci_failures + ' failed' : ', passed') : '—'), sort: (t) => t.ci_cycles },
+    { key: 'shipped', label: 'Shipped', cls: 'opt', render: (t) => document.createTextNode(F.day(t.shipped)), sort: (t) => t.shipped || '' },
+  ];
+  function taskTable(S) {
+    taskState.rows = S.tasks;
+    taskState.max = Math.max(...S.tasks.map((t) => t.cost_usd)) || 1;
+    const thead = el('thead');
+    const hr = el('tr');
+    TASK_COLS.forEach((c) => {
+      const th = el('th', c.cls || null);
+      th.dataset.key = c.key;
+      const b = el('button', null, c.label);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        if (taskState.sort === c.key) taskState.dir *= -1;
+        else { taskState.sort = c.key; taskState.dir = c.cls && c.cls.includes('num') ? -1 : 1; }
+        renderTasks();
+      });
+      th.appendChild(b);
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    $('#tbl-tasks').replaceChildren(thead, el('tbody'));
+    $('#task-search').addEventListener('input', renderTasks);
+    $('#task-more').addEventListener('click', () => { taskState.all = !taskState.all; renderTasks(); });
+    renderTasks();
+  }
+  function renderTasks() {
+    const q = $('#task-search').value.trim().toLowerCase();
+    const col = TASK_COLS.find((c) => c.key === taskState.sort);
+    let rows = taskState.rows.filter((t) => !q || [t.task, t.title, t.type, t.group && GROUP[t.group].name].some((v) => v && String(v).toLowerCase().includes(q)));
+    rows = rows.slice().sort((a, b) => {
+      const x = col.sort(a);
+      const y = col.sort(b);
+      return (x < y ? -1 : x > y ? 1 : 0) * taskState.dir;
+    });
+    const total = rows.length;
+    const shown = taskState.all || q ? rows : rows.slice(0, 15);
+    const tbody = $('#tbl-tasks').tBodies[0];
+    tbody.replaceChildren(...shown.map((t) => {
+      const tr = el('tr');
+      TASK_COLS.forEach((c) => {
+        const td = el('td', c.cls || null);
+        td.appendChild(c.render(t));
+        tr.appendChild(td);
+      });
+      return tr;
+    }));
+    $('#tbl-tasks').querySelectorAll('th').forEach((th) => {
+      th.setAttribute('aria-sort', th.dataset.key === taskState.sort ? (taskState.dir < 0 ? 'descending' : 'ascending') : 'none');
+    });
+    const more = $('#task-more');
+    more.hidden = !!q || total <= 15;
+    more.textContent = taskState.all ? 'Show the top 15' : 'Show all ' + total + ' tasks';
+  }
+
+  // ---------------------------------------------------------------- the long view
+  // Monthly tokens by tool, from the per-call logs. Claude Code only from the start of its kept logs.
+  function monthly(D, S) {
+    const tools = [
+      { id: 'Claude Code', name: 'Claude Code', color: '#efe9dc' },
+      { id: 'Codex', name: 'Codex', color: GROUP.codex.color },
+    ];
+    const by = new Map();
+    for (const r of D.daily) {
+      if (r.tool === 'Claude Code' && r.day < S.firstDay) continue;
+      const key = r.tool + '|' + r.day.slice(0, 7);
+      by.set(key, (by.get(key) || 0) + r.input + r.cw5 + r.cw1h + r.cache_read + r.output);
+    }
+    const months = [...new Set([...by.keys()].map((k) => k.split('|')[1]))].sort();
+    const chart = make('chart-history');
+    chart.setOption(Object.assign(base(), {
+      grid: { left: 52, right: 8, top: 40, bottom: 28 },
+      legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, itemGap: 16, textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(239,233,220,0.05)' } },
+        valueFormatter: (v) => (v ? F.big(v) + ' tokens' : 'no kept logs'),
+      }),
+      xAxis: {
+        type: 'category', data: months.map((m) => new Date(m + '-15T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })),
+        axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false }, axisLabel: AXIS_LABEL,
+      },
+      yAxis: { type: 'value', splitNumber: 4, axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => F.big(v) }), splitLine: { lineStyle: { color: '#35312b' } } },
+      series: tools.map((t) => ({
+        name: t.name, type: 'bar', stack: 'tokens', barMaxWidth: 24,
+        itemStyle: { color: t.color, borderColor: '#131110', borderWidth: 1 },
+        emphasis: { focus: 'series' },
+        data: months.map((m) => by.get(t.id + '|' + m) || 0),
+      })),
+    }));
+    return chart;
+  }
+
+  function codexRoles(D) {
+    const names = { agent: 'Agent work', 'auto-review': 'Auto-review', review: 'Review' };
+    const by = new Map();
+    for (const r of D.daily) {
+      if (r.tool !== 'Codex') continue;
+      by.set(r.role, (by.get(r.role) || 0) + r.input + r.cw5 + r.cw1h + r.cache_read + r.output);
+    }
+    const total = sum([...by.values()]) || 1;
+    const max = Math.max(...by.values());
+    const rows = [...by.entries()].sort((a, b) => b[1] - a[1]);
+    $('#codex-roles').replaceChildren(...rows.map(([role, v]) => {
+      const row = el('div', 'role');
+      const track = el('div');
+      const bar = el('div', 'role-bar');
+      bar.style.width = (v / max) * 100 + '%';
+      track.appendChild(bar);
+      const val = el('span', 'role-val', F.pct(v / total));
+      val.title = F.big(v) + ' tokens';
+      row.append(el('span', null, names[role] || role), track, val);
+      return row;
+    }));
+  }
+
+  function priceTable(D) {
+    const thead = el('thead');
+    const hr = el('tr');
+    ['Model', 'Input', 'Output', 'Cache read', '5-minute write', '1-hour write'].forEach((h, i) => hr.appendChild(el('th', i ? (i > 3 ? 'num opt' : 'num') : null, h)));
+    thead.appendChild(hr);
+    const tbody = el('tbody');
+    D.prices.forEach((p) => {
+      const tr = el('tr');
+      const g = GROUP[groupOf(p.model)];
+      tr.append(
+        el('td', null, g.id === 'other' ? p.model.replace('claude-', '') : g.name),
+        el('td', 'num', F.rate(p.input)), el('td', 'num', F.rate(p.output)), el('td', 'num', F.rate(p.cache_read)),
+        el('td', 'num opt', F.rate(p.cache_write_5m)), el('td', 'num opt', F.rate(p.cache_write_1h))
+      );
+      tbody.appendChild(tr);
+    });
+    $('#tbl-prices').replaceChildren(thead, tbody);
+  }
+})();
+</script>
