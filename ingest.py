@@ -13,9 +13,11 @@ to the next commit or PR command in the same session (within 4 hours), or the
 one just before (within 30 minutes); anything else counts as unattributed.
 """
 import glob
+import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
@@ -26,7 +28,7 @@ REPO = os.environ.get('SABLE_REPO', os.path.join(HOME, 'code', 'tattoo-app'))
 REPO_SLUG = 'Pritesh1980/sable'
 CLAUDE_DIR = os.environ.get(
     'CLAUDE_TRANSCRIPTS', os.path.join(HOME, '.claude', 'projects', '-Users-pritesh-code-tattoo-app'))
-CODEX_DIR = os.path.join(HOME, '.codex', 'sessions')
+CODEX_DIRS = [os.path.join(HOME, '.codex', 'sessions'), os.path.join(HOME, '.codex', 'archived_sessions')]
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out')
 SINCE = '2026-05-01'
 
@@ -311,8 +313,22 @@ def build_waveform(replies, codex_rows, since):
 # ---------------------------------------------------------------- loaders
 
 
+def zstd_binary():
+    # Python 3.8 has no zstd module, so compressed logs go through the zstd tool.
+    # launchd starts jobs with a bare PATH, hence the fixed fallbacks.
+    for p in (shutil.which('zstd'), '/usr/local/bin/zstd', '/opt/homebrew/bin/zstd'):
+        if p and os.path.exists(p):
+            return p
+    raise RuntimeError('Codex keeps older sessions as .jsonl.zst, and reading them needs the zstd tool.')
+
+
 def iter_jsonl(path):
-    with open(path, encoding='utf-8', errors='replace') as f:
+    if path.endswith('.zst'):
+        proc = subprocess.Popen([zstd_binary(), '-dcq', path], stdout=subprocess.PIPE)
+        f = io.TextIOWrapper(proc.stdout, encoding='utf-8', errors='replace')
+    else:
+        proc, f = None, open(path, encoding='utf-8', errors='replace')
+    try:
         for line in f:
             line = line.strip()
             if not line:
@@ -321,6 +337,36 @@ def iter_jsonl(path):
                 yield json.loads(line)
             except json.JSONDecodeError:
                 continue
+    finally:
+        f.close()
+        if proc:
+            proc.wait()
+
+
+def codex_files(dirs):
+    """Every Codex session log under `dirs`, plain or zstd-compressed, each session once.
+    Codex compresses older sessions in place and moves some to archived_sessions/."""
+    found = {}
+    for d in dirs:
+        for pattern in ('*.jsonl', '*.jsonl.zst'):
+            for path in glob.glob(os.path.join(d, '**', pattern), recursive=True):
+                key = os.path.basename(path)[:-4] if path.endswith('.zst') else os.path.basename(path)
+                if key not in found or found[key].endswith('.zst') and not path.endswith('.zst'):
+                    found[key] = path
+    return sorted(found.values())
+
+
+def shrunk_days(old_daily, new_daily):
+    """(day, tool, old tokens, new tokens) wherever a rebuild holds fewer tokens than the
+    last snapshot did. Totals for a past day only ever grow, so a drop means logs went missing."""
+    def totals(rows):
+        t = Counter()
+        for r in rows:
+            t[(r['day'], r['tool'])] += sum(r.get(k) or 0 for k in KINDS)
+        return t
+    old, new = totals(old_daily), totals(new_daily)
+    return [(day, tool, n, new.get((day, tool), 0)) for (day, tool), n in sorted(old.items())
+            if new.get((day, tool), 0) < n]
 
 
 def sh(args, cwd=None):
@@ -395,7 +441,7 @@ def load_claude():
 
 def load_codex():
     rows, sessions = [], 0
-    for path in glob.glob(os.path.join(CODEX_DIR, '**', '*.jsonl'), recursive=True):
+    for path in codex_files(CODEX_DIRS):
         meta, model, prev, calls = None, None, None, []
         for d in iter_jsonl(path):
             kind, p = d.get('type'), d.get('payload') or {}
@@ -712,6 +758,15 @@ def build():
                    cache_write_1h=p[0] * CACHE_WRITE_1H, as_of=PRICES_AS_OF) for m, p in PRICES.items()]
 
     os.makedirs(OUT, exist_ok=True)
+    previous = os.path.join(OUT, 'daily.json')
+    if os.path.exists(previous) and '--allow-shrink' not in sys.argv:
+        with open(previous) as f:
+            lost = shrunk_days(json.load(f), daily_rows)
+        if lost:
+            raise RuntimeError('Not writing out/: %d day(s) now hold fewer tokens than the last snapshot, '
+                               'so some logs have gone missing. First: %s. Find the logs, or rerun with '
+                               '--allow-shrink to accept the loss.' % (
+                                   len(lost), ', '.join('%s %s %d->%d' % x for x in lost[:4])))
     datasets = dict(daily=daily_rows, tasks=task_rows, prices=prices)
     for name, rows in datasets.items():
         with open(os.path.join(OUT, name + '.json'), 'w') as f:

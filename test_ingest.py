@@ -1,4 +1,8 @@
 """Unit tests for the pure parts of ingest.py: run with `python3 -m unittest -v`."""
+import os
+import shutil
+import subprocess
+import tempfile
 import unittest
 from datetime import datetime, timezone
 
@@ -76,6 +80,29 @@ class Codex(unittest.TestCase):
         self.assertEqual(d[0], dict(input=40, cw5=0, cw1h=0, cache_read=60, output=10, thinking=2))
         self.assertEqual(d[1], dict(input=10, cw5=0, cw1h=0, cache_read=140, output=20, thinking=3))
         self.assertEqual(d[2]['input'], 40)  # a drop means a fresh context: take the total as is
+
+    def test_finds_plain_and_compressed_logs_in_every_folder_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            live, archived = os.path.join(root, 'sessions', '2026', '07'), os.path.join(root, 'archived_sessions')
+            os.makedirs(live), os.makedirs(archived)
+            for folder, name in [(live, 'rollout-a.jsonl'), (live, 'rollout-b.jsonl.zst'),
+                                 (archived, 'rollout-c.jsonl.zst'), (archived, 'rollout-a.jsonl.zst'),
+                                 (live, 'notes.txt')]:
+                open(os.path.join(folder, name), 'w').close()
+            found = ing.codex_files([os.path.join(root, 'sessions'), archived])
+            names = sorted(os.path.basename(p) for p in found)
+            # rollout-a is in both folders: the plain copy wins, and it is read once
+            self.assertEqual(names, ['rollout-a.jsonl', 'rollout-b.jsonl.zst', 'rollout-c.jsonl.zst'])
+
+    @unittest.skipUnless(shutil.which('zstd'), 'zstd not installed')
+    def test_reads_zstd_compressed_logs(self):
+        with tempfile.TemporaryDirectory() as root:
+            plain = os.path.join(root, 'rollout.jsonl')
+            with open(plain, 'w') as f:
+                f.write('{"type": "session_meta"}\nnot json\n\n{"type": "turn_context"}\n')
+            subprocess.run(['zstd', '-q', '--rm', plain], check=True)
+            rows = list(ing.iter_jsonl(plain + '.zst'))
+            self.assertEqual([r['type'] for r in rows], ['session_meta', 'turn_context'])
 
     def test_roles(self):
         self.assertEqual(ing.codex_role({'originator': 'codex_exec', 'source': 'exec'}), 'review')
@@ -162,6 +189,24 @@ class Rework(unittest.TestCase):
         ]
         n = ing.rework_count({'src/a.js', 'src/test/a.test.js'}, shipped, main, own={'5'})
         self.assertEqual(n, 1)
+
+
+class Shrink(unittest.TestCase):
+    def row(self, day, tool, tokens, model='m'):
+        return dict(day=day, tool=tool, model=model, input=tokens, cw5=0, cw1h=0, cache_read=0, output=0, thinking=0)
+
+    def test_growth_and_regrouping_are_fine(self):
+        old = [self.row('2026-07-01', 'Codex', 100), self.row('2026-10-21', 'Claude Code', 50)]
+        new = [self.row('2026-07-01', 'Codex', 60, model='a'), self.row('2026-07-01', 'Codex', 40, model='b'),
+               self.row('2026-10-21', 'Claude Code', 80), self.row('2026-10-26', 'Claude Code', 5)]
+        self.assertEqual(ing.shrunk_days(old, new), [])
+
+    def test_reports_days_whose_tokens_went_down_or_vanished(self):
+        old = [self.row('2026-07-01', 'Codex', 100), self.row('2026-07-02', 'Codex', 70),
+               self.row('2026-07-02', 'Claude Code', 9)]
+        new = [self.row('2026-07-01', 'Codex', 99), self.row('2026-07-02', 'Claude Code', 9)]
+        self.assertEqual(ing.shrunk_days(old, new),
+                         [('2026-07-01', 'Codex', 100, 99), ('2026-07-02', 'Codex', 70, 0)])
 
 
 if __name__ == '__main__':
