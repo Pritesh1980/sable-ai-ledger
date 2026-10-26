@@ -24,13 +24,22 @@ ledger URL with the JSON files under `data/`.
 
 ## Daily refresh
 
-`refresh.sh` rebuilds the data unattended. It runs the tests and the ingest, and
-commits `out/` if anything changed. launchd runs it at 07:43 every day, or on wake if
-the Mac was asleep then. It shows a macOS notification if anything fails.
+Two halves, because the logs live on this Mac but headless `claude -p` has no
+Artifact tool (tested 2026-10-26), so it can't publish:
 
-It does not republish the page. Publishing needs Claude Code's Artifact tool, which
-headless `claude -p` sessions don't have (tested 2026-10-26), so the page is
-republished from an interactive session ("publish the ledger").
+1. **07:43, this Mac.** launchd runs `refresh.sh`, or runs it on wake if the Mac was
+   asleep. It runs the tests and the ingest, commits `out/` if anything changed, and
+   pushes to the private repo https://github.com/Pritesh1980/sable-ai-ledger. It
+   shows a macOS notification if anything fails.
+2. **08:13 UTC, the cloud.** The routine "Sable AI Ledger: daily republish"
+   (https://claude.ai/code/routines/trig_01VUxd2ZaoXVZNKrvfjTSHRX) clones that repo and
+   republishes the page from `ledger/index.html` and `out/*.json`. It runs on Sonnet 5.5
+   with only the Artifact, Read, Bash and Glob tools, and no Gmail, Drive or Calendar
+   connectors. Its runs are listed on the routine's page.
+
+If the Mac sleeps through both times, the page shows the previous day's data until
+the next morning. Change the page itself by committing `ledger/index.html` and
+pushing: the next routine run publishes it.
 
 - Log: `~/Library/Logs/ai-ledger-refresh.log`
 - Run now: `launchctl kickstart gui/$(id -u)/local.sable.ai-ledger` (or `./refresh.sh`)
@@ -48,8 +57,9 @@ Codex began compressing old sessions to `.jsonl.zst`. Find the logs, or rerun wi
 
 ## Version control
 
-This folder is a local git repository (no remote). Commit after each refresh or
-page change. `out/` is committed on purpose: Claude Code deletes its transcripts
+This folder is a git repository, pushed to the private GitHub repo
+`Pritesh1980/sable-ai-ledger` (since 2026-10-26). The daily job commits and pushes
+data. Commit and push page or script changes yourself. `out/` is committed on purpose: Claude Code deletes its transcripts
 after `cleanupPeriodDays`, so each commit of `out/*.json` keeps a snapshot of numbers
 the logs may no longer hold.
 
