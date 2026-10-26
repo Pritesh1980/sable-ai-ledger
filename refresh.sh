@@ -19,12 +19,15 @@ echo "== $(date '+%F %T')"
 "$PY" ingest.py          # stops without writing if any past day lost tokens
 if git diff --quiet -- out; then
   echo "No new usage since the last refresh."
-  exit 0
+else
+  git add out
+  git commit -q -m "data: refresh $(date +%F)"
+  echo "Committed $(git rev-parse --short HEAD)"
 fi
-git add out
-git commit -q -m "data: refresh $(date +%F)"
-echo "Committed $(git rev-parse --short HEAD)"
 
-# Publishing the page ($URL) needs the Artifact tool, which only interactive
-# Claude Code sessions have: `claude -p` gets none (tested 2026-10-26). So this job
-# keeps the snapshot safe and current; the page is republished from a session.
+# Push anything unpushed. A cloud routine republishes the page ($URL) from GitHub
+# at 08:13, because `claude -p` here has no Artifact tool (tested 2026-10-26).
+if [ -n "$(git log origin/main..HEAD --oneline)" ]; then
+  git push -q origin main
+  echo "Pushed to origin/main"
+fi
