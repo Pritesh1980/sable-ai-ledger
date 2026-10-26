@@ -191,6 +191,149 @@ class Rework(unittest.TestCase):
         self.assertEqual(n, 1)
 
 
+def varint(n):
+    out = bytearray()
+    while True:
+        b, n = n & 0x7f, n >> 7
+        out.append(b | 0x80 if n else b)
+        if not n:
+            return bytes(out)
+
+
+def pb(*fields):
+    """Encode (field number, int | str | bytes) pairs as a protobuf message."""
+    out = b''
+    for num, v in fields:
+        if isinstance(v, int):
+            out += varint(num << 3) + varint(v)
+        else:
+            v = v.encode() if isinstance(v, str) else v
+            out += varint(num << 3 | 2) + varint(len(v)) + v
+    return out
+
+
+def generation(exec_id='e1', code=1072, name='Gemini 3.6 Flash (Medium)', slug='gemini-3.6-flash',
+               request='Design review of Sable, a tattoo PWA'):
+    usage = pb((1, code), (2, 1000), (3, 300), (5, 5000), (9, 200), (10, 100))
+    chat = [(1, 'You are Antigravity'), (2, pb((2, 1), (3, '<USER_REQUEST>\n' + request + '\n</USER_REQUEST>'))),
+            (17, pb((2, usage))), (19, slug)]
+    if name:
+        chat.append((21, name))
+    return pb((3, pb((28, slug))), (4, exec_id), (1, pb(*chat)))
+
+
+class Protobuf(unittest.TestCase):
+    def test_reads_nested_fields(self):
+        msg = pb((1, pb((2, 'x'), (3, 7))), (4, 'y'))
+        self.assertEqual(ing.pb_get(msg, 1, 3), 7)
+        self.assertEqual(ing.pb_get(msg, 1, 2), b'x')
+        self.assertEqual(ing.pb_get(msg, 4), b'y')
+        self.assertIsNone(ing.pb_get(msg, 1, 9))
+        self.assertEqual(ing.pb_all(pb((2, 'a'), (3, 1), (2, 'b')), 2), [b'a', b'b'])
+
+    def test_garbage_reads_as_nothing(self):
+        self.assertIsNone(ing.pb_get(b'\xff\xff\xff', 1))
+        self.assertIsNone(ing.pb_get(pb((1, 'plain text, not a message')), 1, 5))
+        self.assertIsNone(ing.pb_get(None, 1))
+
+
+class Antigravity(unittest.TestCase):
+    def test_reads_a_generation(self):
+        g = ing.antigravity_generation(generation())
+        self.assertEqual((g['exec'], g['code'], g['name']), ('e1', 1072, 'Gemini 3.6 Flash (Medium)'))
+        self.assertEqual(g['request'], 'Design review of Sable, a tattoo PWA')
+        # output includes thinking, as it does for Claude and Codex
+        self.assertEqual(g['usage'], dict(input=1000, cw5=0, cw1h=0, cache_read=5000, output=300, thinking=200))
+
+    def test_model_ids_drop_the_effort_level(self):
+        m = ing.antigravity_model
+        self.assertEqual(m('Gemini 3.6 Flash (Medium)'), 'gemini-3.6-flash')
+        self.assertEqual(m('Gemini 4 Argon (High)'), 'gemini-4-argon')
+        # Claude through Antigravity uses Claude Code's ids, so the two add up
+        self.assertEqual(m('Claude Opus 5.5 (High)'), 'claude-opus-5-5')
+
+    def test_unnamed_generations_borrow_the_name_seen_for_their_code(self):
+        gens = [ing.antigravity_generation(generation(code=1072)),
+                ing.antigravity_generation(generation(code=1072, name=None)),
+                ing.antigravity_generation(generation(code=1418, name=None, slug='gemini-4-argon-trial'))]
+        self.assertEqual(ing.name_models(gens), ['gemini-3.6-flash', 'gemini-3.6-flash', 'gemini-4-argon-trial'])
+
+    def test_sable_folders(self):
+        repo = ing.REPO
+        yes = [repo, repo + '/.worktrees/fix-101', 'file://' + repo + '/.claude/worktrees/plan-116',
+               '/private/tmp/claude-502/' + repo.replace('/', '-') + '/5a21/scratchpad']
+        no = ['/Users/someone/code/other', repo + '-old', '/private/tmp/mistry-review']
+        self.assertEqual([ing.is_sable_folder(f) for f in yes], [True] * len(yes))
+        self.assertEqual([ing.is_sable_folder(f) for f in no], [False] * len(no))
+
+    def test_a_known_folder_decides_and_otherwise_the_request_must_name_sable(self):
+        repo = ing.REPO
+        self.assertTrue(ing.antigravity_is_sable(repo, 'Review this diff'))
+        self.assertFalse(ing.antigravity_is_sable('/Users/someone/code/book', 'Review the Sable diff'))
+        self.assertTrue(ing.antigravity_is_sable(None, 'Design/UX review. Sable is a dark tattoo PWA'))
+        self.assertFalse(ing.antigravity_is_sable(None, 'Review only this unified diff for races'))
+        other = os.path.join(os.path.dirname(repo), 'book')
+        self.assertFalse(ing.antigravity_is_sable(None, 'Compare Sable with ' + other + '/src/a.ts'))
+
+    def test_folders_from_cli_logs_and_history(self):
+        log = ['I1021 server.go:323] Creating CLI server backend: product=antigravity workspaceDirs=[/a/sable] appDataDir=x',
+               'I1021 server.go:1263] Created conversation 980c2d21-2699-48d3-8481-b1a49779ad2c',
+               'I1021 server.go:323] Creating CLI server backend: workspaceDirs=[] appDataDir=x',
+               'I1021 server.go:1263] Created conversation 11111111-2222-3333-4444-555555555555']
+        hist = ['{"display":"hi","workspace":"/a/sable","conversationId":"933d0182-603b-4966-8794-55ea57d89ea1"}',
+                '{"display":"/model","workspace":"/a/sable"}', 'not json']
+        folders, interactive = ing.antigravity_cli_folders([log], hist)
+        self.assertEqual(folders, {'980c2d21-2699-48d3-8481-b1a49779ad2c': '/a/sable',
+                                   '933d0182-603b-4966-8794-55ea57d89ea1': '/a/sable'})
+        self.assertEqual(interactive, {'933d0182-603b-4966-8794-55ea57d89ea1'})
+
+    def test_reads_a_conversation_database_without_touching_it(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, 'c0ffee00-0000-0000-0000-000000000000.db')
+            con = sqlite3.connect(path)
+            con.executescript('create table trajectory_metadata_blob (id text, data blob);'
+                              'create table steps (idx integer, metadata blob);'
+                              'create table gen_metadata (idx integer, data blob);')
+            con.execute('insert into trajectory_metadata_blob values (?, ?)',
+                        ('main', pb((1, pb((1, 'file:///Users/me/My%20Code/sable'))), (2, pb((1, 1790000000))))))
+            con.executemany('insert into steps values (?, ?)', [
+                (0, pb((1, pb((1, 1790000100))), (12, 'e1'))), (1, pb((1, pb((1, 1790000050))), (12, 'e1'))),
+                (2, pb((1, pb((1, 1790090000))), (12, 'e2')))])
+            con.executemany('insert into gen_metadata values (?, ?)', [
+                (0, generation(exec_id='e1')), (1, generation(exec_id='e2', name=None)), (2, generation(exec_id='e9'))])
+            con.commit(), con.close()
+            before = os.path.getmtime(path)
+            c = ing.read_antigravity_db(path)
+            self.assertEqual(os.path.getmtime(path), before)
+        self.assertEqual(c['id'], 'c0ffee00-0000-0000-0000-000000000000')
+        self.assertEqual(c['folder'], '/Users/me/My Code/sable')
+        self.assertEqual(c['request'], 'Design review of Sable, a tattoo PWA')
+        # each generation is dated by the first step of its turn, else by the conversation's start
+        self.assertEqual([int(g['ts'].timestamp()) for g in c['gens']], [1790000050, 1790090000, 1790000000])
+
+
+class GeminiCli(unittest.TestCase):
+    def test_token_counts(self):
+        u = ing.gemini_cli_usage({'input': 19243, 'output': 23, 'cached': 15071, 'thoughts': 151, 'tool': 2})
+        # Gemini counts cached tokens inside input and thinking outside output
+        self.assertEqual(u, dict(input=4174, cw5=0, cw1h=0, cache_read=15071, output=174, thinking=151))
+
+    def test_each_reply_counts_once(self):
+        tokens = {'input': 10, 'output': 1, 'cached': 0, 'thoughts': 0, 'tool': 0}
+        records = [
+            {'sessionId': 's', 'kind': 'main'},
+            {'$set': {'messages': [{'id': 'a', 'type': 'gemini', 'timestamp': '2026-06-04T21:00:00Z',
+                                    'model': 'gemini-3-flash-preview', 'tokens': tokens}]}},
+            {'id': 'a', 'type': 'gemini', 'timestamp': '2026-06-04T21:00:00Z', 'model': 'gemini-3-flash-preview', 'tokens': tokens},
+            {'id': 'b', 'type': 'user', 'timestamp': '2026-06-04T21:01:00Z', 'content': 'hi'},
+            {'id': 'c', 'type': 'gemini', 'timestamp': '2026-06-04T21:02:00Z', 'model': 'gemini-3-flash-preview', 'tokens': tokens},
+        ]
+        replies = ing.gemini_cli_replies(records)
+        self.assertEqual([r['model'] for r in replies], ['gemini-3-flash-preview'] * 2)
+        self.assertEqual(replies[1]['ts'], t('2026-06-04T21:02:00'))
+
+
 class Shrink(unittest.TestCase):
     def row(self, day, tool, tokens, model='m'):
         return dict(day=day, tool=tool, model=model, input=tokens, cw5=0, cw1h=0, cache_read=0, output=0, thinking=0)

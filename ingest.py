@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the Sable AI-usage datasets from the logs on this Mac.
 
-Reads Claude Code transcripts, Codex session logs, git history and GitHub (through `gh`), and writes one JSON file of row objects per
-dashboard dataset to ./out. Python 3.8+, standard library only.
+Reads Claude Code transcripts, Codex session logs, Antigravity and Gemini CLI conversations, git history and GitHub
+(through `gh`), and writes one JSON file of row objects per dashboard dataset to ./out. Python 3.8+, standard library only.
 
     python3 ingest.py
 
@@ -18,10 +18,13 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
+import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote
 
 HOME = os.path.expanduser('~')
 REPO = os.environ.get('SABLE_REPO', os.path.join(HOME, 'code', 'tattoo-app'))
@@ -29,7 +32,12 @@ REPO_SLUG = 'Pritesh1980/sable'
 CLAUDE_DIR = os.environ.get(
     'CLAUDE_TRANSCRIPTS', os.path.join(HOME, '.claude', 'projects', '-Users-pritesh-code-tattoo-app'))
 CODEX_DIRS = [os.path.join(HOME, '.codex', 'sessions'), os.path.join(HOME, '.codex', 'archived_sessions')]
+# Antigravity: the agy CLI first, then the IDE. Each keeps conversations/<id>.db.
+ANTIGRAVITY_DIRS = [os.path.join(HOME, '.gemini', 'antigravity-cli'), os.path.join(HOME, '.gemini', 'antigravity')]
+GEMINI_CLI_DIR = os.path.join(HOME, '.gemini', 'tmp')
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out')
+# Folders the agy logs name for each conversation, kept because those logs get pruned.
+FOLDERS_FILE = os.path.join(OUT, 'antigravity_folders.json')
 SINCE = '2026-05-01'
 
 # Claude API list prices, USD per million tokens: (input, output, cache read).
@@ -369,6 +377,198 @@ def shrunk_days(old_daily, new_daily):
             if new.get((day, tool), 0) < n]
 
 
+# ---------------------------------------------------------------- Gemini: Antigravity and the Gemini CLI
+
+
+def pb_fields(buf):
+    """(field, wire type, value) for each field of a protobuf message, without a schema."""
+    i, n = 0, len(buf)
+
+    def varint():
+        nonlocal i
+        v = s = 0
+        while True:
+            b = buf[i]
+            i += 1
+            v |= (b & 0x7f) << s
+            s += 7
+            if b < 0x80:
+                return v
+
+    while i < n:
+        key = varint()
+        field, wire = key >> 3, key & 7
+        if wire == 0:
+            value = varint()
+        elif wire == 2:
+            size = varint()
+            if i + size > n:
+                raise ValueError('field runs past the end')
+            value, i = buf[i:i + size], i + size
+        elif wire in (1, 5):
+            size = 8 if wire == 1 else 4
+            value, i = buf[i:i + size], i + size
+        else:
+            raise ValueError('wire type %d' % wire)
+        yield field, wire, value
+
+
+def pb_get(buf, *path):
+    """The first value at a path of field numbers, or None when it is missing or the bytes are not a message."""
+    try:
+        for field in path:
+            if not isinstance(buf, (bytes, bytearray)):
+                return None
+            buf = next((v for f, _, v in pb_fields(buf) if f == field), None)
+            if buf is None:
+                return None
+        return buf
+    except (IndexError, ValueError):
+        return None
+
+
+def pb_all(buf, field):
+    out = []
+    try:
+        for f, _, v in pb_fields(buf or b''):
+            if f == field:
+                out.append(v)
+    except (IndexError, ValueError):
+        pass
+    return out
+
+
+def text_of(v):
+    return v.decode('utf-8', 'replace') if isinstance(v, (bytes, bytearray)) else None
+
+
+def file_path(uri):
+    p = text_of(uri) if not isinstance(uri, str) else uri
+    if not p:
+        return None
+    return unquote(p[len('file://'):]) if p.startswith('file://') else p
+
+
+def antigravity_generation(blob):
+    """One model call from an Antigravity gen_metadata row. Field numbers were read off real
+    conversations (Oct 2026): 1 is the call, 1.17.2 its usage, 1.21 the model's display name."""
+    call = pb_get(blob, 1)
+    usage = pb_get(call, 17, 2)
+    if not isinstance(usage, (bytes, bytearray)):
+        return None
+    n = {}
+    try:
+        n = {f: v for f, w, v in pb_fields(usage) if w == 0}
+    except (IndexError, ValueError):
+        pass
+    request = ''
+    for msg in pb_all(call, 2):
+        body = text_of(pb_get(msg, 3)) or ''
+        if body.startswith('<USER_REQUEST>'):
+            request = body[len('<USER_REQUEST>'):].split('</USER_REQUEST>')[0].strip()
+            break
+    return dict(exec=text_of(pb_get(blob, 4)), code=n.get(1), name=text_of(pb_get(call, 21)),
+                slug=text_of(pb_get(call, 19)), request=request,
+                usage=dict(input=n.get(2, 0), cw5=n.get(4, 0), cw1h=0, cache_read=n.get(5, 0),
+                           output=n.get(3, 0), thinking=n.get(9, 0)))
+
+
+def antigravity_model(name):
+    """'Gemini 3.6 Flash (Medium)' -> 'gemini-3.6-flash'. The effort level in brackets is dropped,
+    and Claude models take Claude Code's ids so the same model adds up across tools."""
+    slug = re.sub(r'\s+', '-', re.sub(r'\s*\([^)]*\)\s*$', '', name).strip().lower())
+    return slug.replace('.', '-') if slug.startswith('claude-') else slug
+
+
+def name_models(gens):
+    """A model id per generation. Older calls carry only a model code, so they borrow the
+    name another call with the same code carries, else the internal slug."""
+    known = {}
+    for g in gens:
+        if g['name'] and g['code'] is not None:
+            known.setdefault(g['code'], antigravity_model(g['name']))
+    return [antigravity_model(g['name']) if g['name'] else known.get(g['code']) or g['slug'] or 'unknown'
+            for g in gens]
+
+
+def is_sable_folder(path):
+    p = file_path(path)
+    if not p:
+        return False
+    p = p.rstrip('/')
+    # Also a Claude Code scratchpad from one of this repo's sessions.
+    return p == REPO or p.startswith(REPO + '/') or (REPO.replace('/', '-') + '/') in p
+
+
+SABLE_WORDS = re.compile(r'\bsable\b|\btattoo', re.I)
+
+
+def antigravity_is_sable(folder, request):
+    """A folder on record decides. Without one, the request must name Sable and no other project folder."""
+    if folder:
+        return is_sable_folder(folder)
+    text = request or ''
+    parent = os.path.dirname(REPO) + '/'
+    others = [m for m in re.findall(re.escape(parent) + r'([^/\s\'"`]+)', text) if m != os.path.basename(REPO)]
+    return bool(SABLE_WORDS.search(text)) and not others
+
+
+AGY_WORKSPACE = re.compile(r'workspaceDirs=\[([^\]]*)\]')
+AGY_CREATED = re.compile(r'Created conversation ([0-9a-f-]{36})')
+
+
+def antigravity_cli_folders(logs, history):
+    """{conversation id: folder} from the agy CLI's logs and prompt history, and the ids typed into
+    interactively. Each log is one CLI run: it names its workspace, then each conversation it creates."""
+    folders, interactive = {}, set()
+    for lines in logs:
+        current = None
+        for line in lines:
+            m = AGY_WORKSPACE.search(line)
+            if m:
+                current = (m.group(1).split() or [None])[0]
+            m = AGY_CREATED.search(line)
+            if m and current:
+                folders.setdefault(m.group(1), current)
+    for line in history:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        cid = d.get('conversationId') if isinstance(d, dict) else None
+        if cid:
+            interactive.add(cid)
+            if d.get('workspace'):
+                folders.setdefault(cid, d['workspace'])
+    return folders, interactive
+
+
+def gemini_cli_usage(tok):
+    """Gemini counts cached tokens inside input, and thinking outside output."""
+    cached, thoughts = tok.get('cached') or 0, tok.get('thoughts') or 0
+    return dict(input=max(0, (tok.get('input') or 0) - cached) + (tok.get('tool') or 0), cw5=0, cw1h=0,
+                cache_read=cached, output=(tok.get('output') or 0) + thoughts, thinking=thoughts)
+
+
+def gemini_cli_replies(records):
+    """Model replies in a Gemini CLI chat log, each once: the log rewrites a message as it streams."""
+    msgs = {}
+    for r in records:
+        s = r.get('$set')
+        batch = list(s['messages']) if isinstance(s, dict) and isinstance(s.get('messages'), list) else []
+        if r.get('id'):
+            batch.append(r)
+        for m in batch:
+            if isinstance(m, dict) and m.get('id'):
+                msgs[m['id']] = m
+    out = []
+    for m in msgs.values():
+        ts = parse_ts(m.get('timestamp'))
+        if m.get('type') == 'gemini' and isinstance(m.get('tokens'), dict) and ts:
+            out.append(dict(ts=ts, model=norm_model(m.get('model')), usage=gemini_cli_usage(m['tokens'])))
+    return sorted(out, key=lambda r: r['ts'])
+
+
 def sh(args, cwd=None):
     r = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -468,6 +668,94 @@ def load_codex():
     return rows, sessions
 
 
+def read_antigravity_db(path):
+    """One Antigravity conversation. Reads a copy (with its write-ahead log), so a running agy
+    is never locked out and nothing in ~/.gemini changes."""
+    tmp = tempfile.mkdtemp(prefix='agy-')
+    try:
+        copy = os.path.join(tmp, 'c.db')
+        for suffix in ('', '-wal'):
+            if os.path.exists(path + suffix):
+                shutil.copyfile(path + suffix, copy + suffix)
+        con = sqlite3.connect(copy)
+        try:
+            traj = (con.execute('select data from trajectory_metadata_blob').fetchone() or [None])[0]
+            started = {}
+            for (meta,) in con.execute('select metadata from steps'):
+                ex, at = text_of(pb_get(meta, 12)), pb_get(meta, 1, 1)
+                if ex and isinstance(at, int):
+                    started[ex] = min(at, started.get(ex, at))
+            gens = [g for g in (antigravity_generation(b) for (b,) in con.execute('select data from gen_metadata order by idx')) if g]
+        finally:
+            con.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    created = pb_get(traj, 2, 1)
+    for g in gens:
+        at = started.get(g['exec']) or (created if isinstance(created, int) else None)
+        g['ts'] = datetime.fromtimestamp(at, timezone.utc) if at else None
+    return dict(id=os.path.basename(path)[:-len('.db')], folder=file_path(pb_get(traj, 1, 1) or pb_get(traj, 7)),
+                request=next((g['request'] for g in gens if g['request']), ''), gens=gens)
+
+
+def load_antigravity(saved_folders):
+    """Model calls from Antigravity conversations that were for Sable, plus every folder the agy
+    logs named (to keep), and counts of how each conversation was placed."""
+    cli = ANTIGRAVITY_DIRS[0]
+    logs = []
+    for p in sorted(glob.glob(os.path.join(cli, 'log', '*.log'))):
+        with open(p, encoding='utf-8', errors='replace') as f:
+            logs.append(f.readlines())
+    history = []
+    if os.path.exists(os.path.join(cli, 'history.jsonl')):
+        with open(os.path.join(cli, 'history.jsonl'), encoding='utf-8', errors='replace') as f:
+            history = f.readlines()
+    found, interactive = antigravity_cli_folders(logs, history)
+    folders = dict(saved_folders)
+    folders.update(found)
+
+    convs, stats = [], Counter()
+    for d in ANTIGRAVITY_DIRS:
+        for path in sorted(glob.glob(os.path.join(d, 'conversations', '*.db'))):
+            try:
+                c = read_antigravity_db(path)
+            except sqlite3.DatabaseError:
+                stats['unreadable'] += 1
+                continue
+            c['ide'] = d != cli
+            convs.append(c)
+    # Names are learnt across every conversation, Sable or not, so older calls can borrow them.
+    for g, model in zip([g for c in convs for g in c['gens']], name_models([g for c in convs for g in c['gens']])):
+        g['model'] = model
+    rows = []
+    for c in convs:
+        folder = c['folder'] or folders.get(c['id'])
+        if not antigravity_is_sable(folder, c['request']):
+            stats['left out'] += 1
+            continue
+        stats['by folder' if c['folder'] else 'by log' if folder else 'by request'] += 1
+        role = 'agent' if c['ide'] or c['id'] in interactive else 'review'
+        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'])
+                 for g in c['gens'] if g['ts']]
+    return rows, folders, stats
+
+
+def load_gemini_cli():
+    """Replies from the Gemini CLI (before agy), for chats whose project root is this repo."""
+    rows = []
+    for project in sorted(glob.glob(os.path.join(GEMINI_CLI_DIR, '*'))):
+        try:
+            with open(os.path.join(project, '.project_root')) as f:
+                root = f.read().strip()
+        except OSError:
+            continue
+        if not is_sable_folder(root):
+            continue
+        for path in sorted(glob.glob(os.path.join(project, 'chats', '*.jsonl'))):
+            rows += [dict(r, tool='Gemini CLI', role='agent') for r in gemini_cli_replies(iter_jsonl(path))]
+    return rows
+
+
 def load_git():
     commits = []
     for line in sh(['git', 'log', '--all', '--since=' + SINCE, '--format=%H%x1f%h%x1f%cI%x1f%s'], REPO).splitlines():
@@ -537,6 +825,12 @@ def ci_summary(runs):
 def build():
     claude = load_claude()
     codex_rows, codex_sessions = load_codex()
+    saved_folders = {}
+    if os.path.exists(FOLDERS_FILE):
+        with open(FOLDERS_FILE) as f:
+            saved_folders = json.load(f)
+    agy_rows, agy_folders, agy_stats = load_antigravity(saved_folders)
+    gemini_rows = agy_rows + load_gemini_cli()
     all_commits, main_commits = load_git()
     prs, issues, runs = load_github()
 
@@ -637,6 +931,10 @@ def build():
         row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']))]
         row['replies'] += 1
         add(row, c['usage'])
+    for g in gemini_rows:  # no branch on record, so never attributed to a task
+        row = daily[(local_day(g['ts']), g['tool'], g['model'], g['role'], False)]
+        row['replies'] += 1
+        add(row, g['usage'])
     daily_rows = []
     for (day, tool, model, role, attributed), row in sorted(daily.items()):
         row = dict(row)
@@ -771,6 +1069,8 @@ def build():
     for name, rows in datasets.items():
         with open(os.path.join(OUT, name + '.json'), 'w') as f:
             json.dump(rows, f, separators=(',', ':'))
+    with open(FOLDERS_FILE, 'w') as f:
+        json.dump(agy_folders, f, indent=0, sort_keys=True)
     # The last 30 days: the window both Claude Code and Codex logs fully cover.
     since = replies[-1]['ts'] - timedelta(days=30)
     waveform = build_waveform(replies, codex_rows, since)
@@ -789,6 +1089,12 @@ def build():
     print('Prompts: %d   Compactions: %d   Commit commands matched: %d/%d' % (
         len(claude['prompts']), len(claude['compactions']), len(commit_task), len(commit_cmds)))
     print('Codex: %d sessions, %d calls' % (codex_sessions, len(codex_rows)))
+    placed = sum(agy_stats[k] for k in ('by folder', 'by log', 'by request'))
+    print('Antigravity: %d Sable conversations (%d by folder, %d by agy log, %d by request), %d calls; '
+          '%d left out as not Sable or unknown%s' % (
+              placed, agy_stats['by folder'], agy_stats['by log'], agy_stats['by request'], len(agy_rows),
+              agy_stats['left out'], ', %d unreadable' % agy_stats['unreadable'] if agy_stats['unreadable'] else ''))
+    print('Gemini CLI: %d replies' % (len(gemini_rows) - len(agy_rows)))
     print('Tasks: %d   Daily rows: %d' % (len(task_rows), len(daily_rows)))
     if no_pr:
         print('Unattributed branches:', ', '.join('%s (%d)' % kv for kv in no_pr.most_common(8)))

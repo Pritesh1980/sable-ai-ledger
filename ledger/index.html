@@ -24,6 +24,8 @@
   --m-opus48: #4e78c7;
   --m-sonnet5: #659e41;
   --m-other: #6f6a60;
+  /* Gemini, for makers and tools only (beside bone and teal: normal-vision ΔE 20, CVD 12). */
+  --m-gemini: #927fe7;
   --display: 'Marcellus', 'Trajan Pro', 'Times New Roman', serif;
   --ui: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
   --step--1: 0.8125rem;
@@ -229,6 +231,34 @@ details.numbers { font-size: var(--step--1); color: var(--ash); }
 details.numbers summary { cursor: pointer; width: max-content; }
 details.numbers[open] summary { margin-bottom: 10px; }
 
+/* the models: a donut by maker beside a bar for every model */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--hairline); border-radius: 999px; }
+.seg button {
+  appearance: none; font: inherit; font-size: var(--step--1); color: var(--ash); background: none;
+  border: 0; border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap;
+}
+.seg button:hover { color: var(--bone); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--bone); box-shadow: inset 0 0 0 1px var(--hairline); }
+.seg-row { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.mix { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: 32px 56px; align-items: start; }
+@media (max-width: 900px) { .mix { grid-template-columns: minmax(0, 1fr); } }
+.donut { position: relative; }
+.donut-mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.donut-mid b { font-size: 1.75rem; font-weight: 640; font-stretch: 112%; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.donut-mid span { color: var(--ash); font-size: var(--step--1); margin-top: 4px; }
+.mix-list { display: grid; gap: 10px; }
+.mix-row { display: grid; grid-template-columns: minmax(8.5rem, 13rem) minmax(0, 1fr) 3.25rem 4.5rem; gap: 4px 14px; align-items: center; font-size: var(--step--1); }
+.mix-name { line-height: 1.3; min-width: 0; }
+.mix-name small { display: block; color: var(--ash); font-size: 0.75rem; }
+.mix-row .track { display: block; height: 10px; }
+.mix-row i { display: block; height: 10px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.mix-row .share { text-align: right; font-variant-numeric: tabular-nums; }
+.mix-row .amt { text-align: right; font-variant-numeric: tabular-nums; color: var(--ash); }
+@media (max-width: 520px) {
+  .mix-row { grid-template-columns: minmax(0, 1fr) 3rem 4.25rem; }
+  .mix-row .track { grid-column: 1 / -1; grid-row: 2; }
+}
+
 /* codex roles */
 .roles { display: grid; gap: 14px; }
 .role { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 4.5rem; gap: 12px; align-items: center; font-size: var(--step--1); }
@@ -251,6 +281,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   <div class="wrap mast-row">
     <h1 class="brand"><span class="brand-mark">Sable</span><span class="brand-sub">AI ledger</span></h1>
     <nav class="nav" aria-label="Sections">
+      <a href="#models">The models</a>
       <a href="#bill">The bill</a>
       <a href="#work">The work</a>
       <a href="#cycles">The cycles</a>
@@ -266,7 +297,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   <section class="overview" id="overview" aria-label="Overview">
     <div class="wrap">
       <div class="ov-head">
-        <p class="scope" id="scope">Loading Claude Code and Codex usage for Sable.</p>
+        <p class="scope" id="scope">Loading Claude Code, Codex and Antigravity usage for Sable.</p>
         <button type="button" class="ins-open" data-ins="overview" aria-haspopup="dialog" aria-label="Insight for the overview">Insight</button>
       </div>
       <div class="figures" id="figures">
@@ -288,6 +319,42 @@ details.numbers[open] summary { margin-bottom: 10px; }
         <ul class="legend" id="wave-legend"></ul>
       </figcaption>
     </figure>
+  </section>
+
+  <section class="wrap spread" id="models" aria-labelledby="models-h">
+    <div class="spread-head">
+      <div>
+        <h2 id="models-h" tabindex="-1">The models</h2>
+        <p>How much each model was used across Claude Code, Codex and Antigravity, Google's agent that runs Gemini.</p>
+      </div>
+      <button type="button" class="ins-open" data-ins="models" aria-haspopup="dialog" aria-label="Insight for The models">Insight</button>
+    </div>
+    <div class="spread-body">
+      <div class="seg-row">
+        <div class="seg" role="group" aria-label="Measure">
+          <button type="button" data-measure="tokens" aria-pressed="true">Tokens</button>
+          <button type="button" data-measure="calls" aria-pressed="false">Calls</button>
+        </div>
+        <div class="seg" role="group" aria-label="Period">
+          <button type="button" data-period="30" aria-pressed="true">Last 30 days</button>
+          <button type="button" data-period="all" aria-pressed="false">All kept logs</button>
+        </div>
+      </div>
+      <div class="mix">
+        <div>
+          <p class="chart-title">By maker</p>
+          <div class="donut">
+            <div class="chart" id="chart-makers" style="height: 300px" role="img"></div>
+            <p class="donut-mid" aria-hidden="true"><b id="mix-total">—</b><span id="mix-unit"></span></p>
+          </div>
+        </div>
+        <div>
+          <p class="chart-title">By model</p>
+          <p class="chart-note" id="mix-note"></p>
+          <div class="mix-list" id="mix-list"></div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section class="wrap spread" id="bill" aria-labelledby="bill-h">
@@ -409,7 +476,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-body pair">
       <div>
         <p class="chart-title">Tokens per month, by tool</p>
-        <p class="chart-note">Every token each tool read or wrote, from the per-call logs. Earlier months show Codex only because Claude Code's logs for them are gone. Claude Code's September starts on the 22nd, and the latest month runs to today.</p>
+        <p class="chart-note">Every token each tool read or wrote, from the per-call logs. Earlier months show no Claude Code because its logs for them are gone. Claude Code's September starts on the 22nd, and the latest month runs to today. Antigravity includes a few replies from the older Gemini CLI.</p>
         <div class="chart" id="chart-history" style="height: 320px"></div>
       </div>
       <div>
@@ -424,7 +491,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
 <footer class="wrap foot" id="method">
   <div>
     <h2>How it's measured</h2>
-    <p>Built from the Claude Code and Codex logs on Pritesh's Mac, git history and GitHub. To bring it up to date, ask Claude to refresh the Sable AI ledger.</p>
+    <p>Built from the Claude Code, Codex, Antigravity and Gemini CLI logs on Pritesh's Mac, git history and GitHub. It refreshes every morning.</p>
   </div>
   <div>
     <dl class="defs">
@@ -434,6 +501,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again, usually after a long break or a compaction.</dd></div>
       <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
       <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
+      <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI. A run counts when it ran in Sable's folder or, with no folder on record, when its request names Sable. Tokens only, with no list prices.</dd></div>
+      <div><dt>Call</dt><dd>One model response: a reply in Claude Code, a model turn in Codex, a generation in Antigravity.</dd></div>
     </dl>
     <div class="prices">
       <p class="chart-title">Prices used, US dollars per million tokens</p>
@@ -453,6 +522,10 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <a class="ins-jump" href="#overview">Overview</a>
       <h3 id="ins-head">Waiting for the data.</h3>
       <p id="ins-lede"></p>
+    </article>
+    <article class="ins" id="ins-models">
+      <a class="ins-jump" href="#models">The models</a>
+      <p id="models-copy">Waiting for the data.</p>
     </article>
     <article class="ins" id="ins-bill">
       <a class="ins-jump" href="#bill">The bill</a>
@@ -500,6 +573,35 @@ details.numbers[open] summary { margin-bottom: 10px; }
   const GROUP = Object.fromEntries(GROUPS.map((g) => [g.id, g]));
   const groupOf = (m) => (!m ? 'other' : m.startsWith('gpt-') || m.startsWith('codex') ? 'codex' : GROUP[m] ? m : 'other');
 
+  // Makers, for "The models" and the monthly chart: Claude in bone and OpenAI in Codex's teal, as the tools are
+  // elsewhere, and Gemini in violet. Colour here follows the maker; each model is named on its own row.
+  const MAKERS = [
+    { id: 'claude', name: 'Claude', color: T.bone },
+    { id: 'openai', name: 'OpenAI', color: cssv('--m-codex') },
+    { id: 'gemini', name: 'Gemini', color: cssv('--m-gemini') },
+  ];
+  const MAKER = Object.fromEntries(MAKERS.map((m) => [m.id, m]));
+  const GEMINI_TOOLS = ['Antigravity', 'Gemini CLI'];
+  const makerOf = (r) => (r.model.startsWith('claude-') ? 'claude'
+    : r.model.startsWith('gemini') ? 'gemini'
+    : r.model.startsWith('gpt-') || r.model.startsWith('codex') || r.tool === 'Codex' ? 'openai'
+    : r.tool === 'Claude Code' ? 'claude' : 'gemini');
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  // claude-opus-5-5 -> Opus 5.5, gpt-6.1-sol -> GPT-6.1 Sol, gemini-3.6-flash -> Gemini 3.6 Flash
+  const modelName = (m) => {
+    let x = m.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?$/);
+    if (x) return cap(x[1]) + ' ' + x[2] + (x[3] ? '.' + x[3] : '');
+    x = m.match(/^gpt-([\d.]+)(?:-(.+))?$/);
+    if (x) return 'GPT-' + x[1] + (x[2] ? ' ' + x[2].split('-').map(cap).join(' ') : '');
+    if (m === 'codex-auto-review') return 'Codex auto-review';
+    if (m.startsWith('gemini-')) return m.split('-').map((w, i) => (i ? (/^\d/.test(w) ? w : cap(w)) : 'Gemini')).join(' ');
+    return m;
+  };
+  const tokensOf = (r) => r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
+  // Claude Code's continuous logs start here; a few older transcripts survive but don't cover their months.
+  const CLAUDE_LOGS_FROM = '2026-09-22';
+  const listed = (xs) => (xs.length > 1 ? xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1] : xs[0] || '');
+
   const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
   const F = {
     usd: (v) => (v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en') : v.toFixed(2))),
@@ -507,6 +609,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
     big: (v) => (v == null ? '—' : Math.abs(v) >= 10000 ? compact.format(v) : Math.round(v).toLocaleString('en')),
     int: (v) => (v == null ? '—' : Math.round(v).toLocaleString('en')),
     pct: (v) => (v == null ? '—' : Math.round(v * 100) + '%'),
+    // shares: whole percents from 10%, one decimal below, so small models don't all read 0%
+    share: (v) => (v >= 0.0995 ? Math.round(v * 100) + '%' : v >= 0.0005 ? (Math.round(v * 1000) / 10).toFixed(1) + '%' : '<0.1%'),
     day: (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'),
     dayLong: (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
     rate: (v) => '$' + v.toFixed(2),
@@ -623,7 +727,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       el('b', null, F.usd0(S.writing)), ' on what the models wrote. Keeping sessions short is the biggest lever.'
     );
     const lastCall = D.wave.rows[D.wave.rows.length - 1][0];
-    $('#scope').textContent = 'Claude Code and Codex usage on Sable, with Claude priced at API list rates. Data through '
+    $('#scope').textContent = 'Claude Code, Codex and Antigravity usage on Sable, with Claude priced at API list rates. Data through '
       + new Date(lastCall * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.';
 
     // figures
@@ -649,12 +753,13 @@ details.numbers[open] summary { margin-bottom: 10px; }
       el('b', null, F.usd0(S.kindTotals[0])), ' and writing to it took ', el('b', null, F.usd0(S.kindTotals[1] + S.kindTotals[2])), '. ',
       el('b', null, F.pct(S.rebuildShare)), ' of the tokens written were rebuilds: replies that had to put the whole conversation back in the cache after a long break or a compaction. Shorter sessions make each rebuild smaller.'
     );
+    modelsCopy(D, S);
     workCopy(S);
     daysCopy(D, S);
     longCopy(D, S);
 
     initWave(D, S);
-    charts.push(sankey(S), swarm(S), calendar(D, S), contextLine(D, S), weekly(S), monthly(D, S));
+    charts.push(modelMix(D, S), sankey(S), swarm(S), calendar(D, S), contextLine(D, S), weekly(S), monthly(D, S));
     modelTable(D, S);
     byType(S);
     cycles(S);
@@ -976,6 +1081,118 @@ details.numbers[open] summary { margin-bottom: 10px; }
   };
   const base = () => ({ animation: !REDUCED, animationDuration: 1100, animationEasing: 'cubicOut', textStyle: TEXT, backgroundColor: 'transparent' });
 
+  // ---------------------------------------------------------------- the models (donut + a bar per model)
+  // Every model's total for a measure and period, biggest first, with the tools that ran it.
+  function modelTotals(D, S, measure, period) {
+    const by = new Map();
+    for (const r of D.daily) {
+      if (period !== 'all' && (r.day < S.firstDay || r.day > S.lastDay)) continue;
+      const v = measure === 'calls' ? r.replies : tokensOf(r);
+      if (!v) continue;
+      const m = by.get(r.model) || { id: r.model, maker: makerOf(r), v: 0, tokens: 0, calls: 0, tools: new Set() };
+      m.v += v;
+      m.tokens += tokensOf(r);
+      m.calls += r.replies;
+      m.tools.add(r.tool);
+      by.set(r.model, m);
+    }
+    const list = [...by.values()].sort((a, b) => b.v - a.v);
+    const total = sum(list.map((m) => m.v));
+    const makers = MAKERS.map((k) => Object.assign({}, k, { v: sum(list.filter((m) => m.maker === k.id).map((m) => m.v)) }))
+      .filter((k) => k.v > 0);
+    return { list, total, makers };
+  }
+
+  function modelMix(D, S) {
+    const state = { measure: 'tokens', period: '30' };
+    const chart = make('chart-makers');
+    const narrow = () => window.innerWidth < 640;
+    const draw = () => {
+      const { list, total, makers } = modelTotals(D, S, state.measure, state.period);
+      const calls = state.measure === 'calls';
+      const unit = calls ? 'calls' : 'tokens';
+      const amount = (v) => (calls ? F.int(v) : F.big(v));
+      chart.setOption(Object.assign(base(), {
+        tooltip: Object.assign({}, TIP, {
+          trigger: 'item',
+          formatter: (p) => esc(p.name) + ' models<br><b>' + F.share(p.value / total) + '</b> of ' + unit + ', ' + amount(p.value),
+        }),
+        series: [{
+          type: 'pie', radius: narrow() ? ['44%', '63%'] : ['56%', '80%'], center: ['50%', '50%'],
+          startAngle: 90, minAngle: 2, avoidLabelOverlap: true,
+          itemStyle: { borderColor: T.ink, borderWidth: 2, borderRadius: 3 },
+          emphasis: { scale: true, scaleSize: 4 },
+          label: {
+            formatter: (p) => '{n|' + p.name + '}\n{v|' + F.share(p.value / total) + '}',
+            rich: {
+              n: { color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: 13, lineHeight: 17 },
+              v: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12, lineHeight: 15 },
+            },
+          },
+          labelLine: { length: 8, length2: 10, lineStyle: { color: '#6f6a60' } },
+          data: makers.map((k) => ({ name: k.name, value: k.v, itemStyle: { color: k.color } })),
+        }],
+      }));
+      $('#chart-makers').setAttribute('aria-label', 'Share of ' + unit + ' by maker: '
+        + listed(makers.map((k) => k.name + ' ' + F.share(k.v / total))) + '.');
+      $('#mix-total').textContent = amount(total);
+      $('#mix-unit').textContent = unit + (state.period === 'all' ? ', all kept logs' : ', last 30 days');
+
+      const max = list.length ? list[0].v : 1;
+      $('#mix-list').replaceChildren(...list.map((m) => {
+        const row = el('div', 'mix-row');
+        const name = el('span', 'mix-name', modelName(m.id));
+        name.appendChild(el('small', null, MAKER[m.maker].name + ', in ' + listed([...m.tools])));
+        const track = el('span', 'track');
+        const bar = el('i');
+        bar.style.width = (m.v / max) * 100 + '%';
+        bar.style.background = MAKER[m.maker].color;
+        track.appendChild(bar);
+        row.title = modelName(m.id) + ': ' + F.int(m.tokens) + ' tokens in ' + F.int(m.calls) + ' calls';
+        row.append(name, track, el('span', 'share', F.share(m.v / total)), el('span', 'amt', amount(m.v)));
+        return row;
+      }));
+      $('#mix-note').textContent = (calls
+        ? 'Each bar is one model\'s share of all model calls, coloured by its maker. A call is one response: a reply in Claude Code, a model turn in Codex, a generation in Antigravity.'
+        : 'Each bar is one model\'s share of every token read and written, cache included, coloured by its maker.')
+        + (state.period === 'all' ? ' Claude Code\'s logs mostly start on 22 September and Codex\'s in May, so over all kept logs Claude\'s share is understated.' : '');
+    };
+    document.querySelectorAll('#models .seg button').forEach((b) => b.addEventListener('click', () => {
+      const key = b.dataset.measure ? 'measure' : 'period';
+      state[key] = b.dataset[key];
+      b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      draw();
+    }));
+    draw();
+    // the ring's size depends on the width, so redraw when the layout switches
+    let wasNarrow = narrow();
+    window.addEventListener('resize', () => {
+      if (narrow() !== wasNarrow) {
+        wasNarrow = narrow();
+        draw();
+      }
+    });
+    return chart;
+  }
+
+  function modelsCopy(D, S) {
+    const tok = modelTotals(D, S, 'tokens', '30');
+    const calls = modelTotals(D, S, 'calls', '30');
+    if (!tok.total) return;
+    const share = (t, id) => {
+      const k = t.makers.find((x) => x.id === id);
+      return k ? k.v / t.total : 0;
+    };
+    const b = (v) => el('b', null, F.share(v));
+    const top = tok.list[0];
+    const copy = ['Over the last 30 days, Claude models read and wrote ', b(share(tok, 'claude')), ' of the tokens, OpenAI\'s ',
+      b(share(tok, 'openai')), ' and Gemini ', b(share(tok, 'gemini')), '. ',
+      modelName(top.id) + ' did the most on its own, with ', b(top.v / tok.total), '. '];
+    const gt = share(tok, 'gemini'), gc = share(calls, 'gemini');
+    if (gc > 2 * gt) copy.push('Gemini made ', b(gc), ' of the calls, more than its share of tokens, because most Antigravity runs were one-off reviews that read little context.');
+    $('#models-copy').replaceChildren(...copy);
+  }
+
   // ---------------------------------------------------------------- the bill (sankey)
   function sankey(S) {
     // Models under 3% of the bill fold into one node, so small labels don't pile up.
@@ -1085,6 +1302,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   function modelTable(D, S) {
     const reuse = new Map();
     for (const r of D.daily) {
+      if (r.tool !== 'Codex' && r.tool !== 'Claude Code') continue;
       const g = r.tool === 'Codex' ? 'codex' : groupOf(r.model);
       const a = reuse.get(g) || { read: 0, write: 0 };
       a.read += r.cache_read;
@@ -1311,16 +1529,18 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const tok = (r) => r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
     const names = { agent: 'agent work', 'auto-review': 'auto-review', review: 'review' };
     const roles = new Map();
-    let claude = 0, codexSince = 0, codexFrom = null;
+    let claude = 0, codexSince = 0, codexFrom = null, gemini = 0;
     for (const r of D.daily) {
       if (r.tool === 'Codex') {
         roles.set(r.role, (roles.get(r.role) || 0) + tok(r));
         if (r.day >= S.firstDay) codexSince += tok(r);
         if (!codexFrom || r.day < codexFrom) codexFrom = r.day;
       } else if (r.tool === 'Claude Code' && r.day >= S.firstDay) claude += tok(r);
+      else if (GEMINI_TOOLS.includes(r.tool) && r.day >= S.firstDay) gemini += tok(r);
     }
-    const copy = ['Since ' + F.day(S.firstDay) + ', Claude Code read and wrote ', el('b', null, F.big(claude)), ' tokens and Codex ',
-      el('b', null, F.big(codexSince)), ', so Codex was ' + F.pct(codexSince / ((claude + codexSince) || 1)) + ' of the total. '];
+    const copy = ['Since ' + F.day(S.firstDay) + ', Claude Code read and wrote ', el('b', null, F.big(claude)), ' tokens, Codex ',
+      el('b', null, F.big(codexSince)), ' and Antigravity ', el('b', null, F.big(gemini)),
+      ', so Codex was ' + F.pct(codexSince / ((claude + codexSince + gemini) || 1)) + ' of the total. '];
     const all = sum([...roles.values()]);
     if (all) {
       const parts = [...roles.entries()].sort((a, b) => b[1] - a[1]).map(([k, v], i) => (names[k] || k) + (i ? ' ' : ' took ') + F.pct(v / all));
@@ -1556,14 +1776,15 @@ details.numbers[open] summary { margin-bottom: 10px; }
   // Monthly tokens by tool, from the per-call logs. Claude Code only from the start of its kept logs.
   function monthly(D, S) {
     const tools = [
-      { id: 'Claude Code', name: 'Claude Code', color: '#efe9dc' },
-      { id: 'Codex', name: 'Codex', color: GROUP.codex.color },
+      { id: 'Claude Code', name: 'Claude Code', color: MAKER.claude.color },
+      { id: 'Codex', name: 'Codex', color: MAKER.openai.color },
+      { id: 'Gemini', name: 'Antigravity', color: MAKER.gemini.color },
     ];
     const by = new Map();
     for (const r of D.daily) {
-      if (r.tool === 'Claude Code' && r.day < S.firstDay) continue;
-      const key = r.tool + '|' + r.day.slice(0, 7);
-      by.set(key, (by.get(key) || 0) + r.input + r.cw5 + r.cw1h + r.cache_read + r.output);
+      if (r.tool === 'Claude Code' && r.day < CLAUDE_LOGS_FROM) continue;
+      const key = (GEMINI_TOOLS.includes(r.tool) ? 'Gemini' : r.tool) + '|' + r.day.slice(0, 7);
+      by.set(key, (by.get(key) || 0) + tokensOf(r));
     }
     const months = [...new Set([...by.keys()].map((k) => k.split('|')[1]))].sort();
     const chart = make('chart-history');

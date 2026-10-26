@@ -13,6 +13,8 @@ published beside the page. The earlier Dashboard-type page was retired on
 |---|---|---|
 | Claude Code transcripts | `~/.claude/projects/-Users-pritesh-code-tattoo-app/` | Tokens, cache, thinking, model, branch per reply |
 | Codex sessions | `~/.codex/sessions/` and `archived_sessions/`, plain or `.jsonl.zst` (filtered to this repo; needs the `zstd` tool) | Tokens per call, model, role, branch |
+| Antigravity (agy CLI and IDE) | `~/.gemini/antigravity-cli/` and `~/.gemini/antigravity/`, one SQLite file per conversation in `conversations/` | Tokens per generation, model (mostly Gemini) |
+| Gemini CLI (before agy) | `~/.gemini/tmp/<project>/chats/` | Tokens per reply, model |
 | git + GitHub (`gh`) | the repo | PRs, issues, CI runs, diff sizes, rework |
 
 ## Refresh
@@ -47,7 +49,7 @@ pushing: the next routine run publishes it.
 - Stop: `launchctl bootout gui/$(id -u)/local.sable.ai-ledger && rm ~/Library/LaunchAgents/local.sable.ai-ledger.plist`
 
 The ingest refuses to write `out/` when any past day holds fewer tokens than the last
-snapshot, which means logs went missing. That is what happened on 2026-10-26, when
+snapshot for the same tool, which means logs went missing. That is what happened on 2026-10-26, when
 Codex began compressing old sessions to `.jsonl.zst`. Find the logs, or rerun with
 `python3 ingest.py --allow-shrink` to accept the loss.
 
@@ -72,8 +74,19 @@ the logs may no longer hold.
   not used. It records running totals for long, parallel sessions; summed it showed
   $172k for August, and even untangled into per-session amounts it came out 1.5 to
   2.3 times the transcripts for the same 30 days.
-- Codex has no list prices here, so it is compared on tokens, not dollars.
-- agy (Antigravity) logs are not read yet.
+- Codex and Gemini have no list prices here, so they are compared on tokens, not dollars.
+- Antigravity stores each conversation as SQLite rows of protobuf with no published
+  schema. `ingest.py` reads a copy of each file (so a running agy is never locked) and
+  decodes the few fields it needs: the field numbers are noted in
+  `antigravity_generation()`, read off real conversations in October 2026. If an agy
+  update moves them, the Antigravity rows vanish and the shrink guard stops the refresh.
+- Many agy runs record no folder. A conversation counts for Sable when Antigravity
+  recorded Sable's folder (a worktree or a Claude Code scratchpad of this repo counts),
+  else when the agy CLI log or prompt history names its folder, else when its request
+  names Sable (or tattoo) and no other project folder. Everything else is left out:
+  on 2026-10-26 that was 60 of 123 conversations, some of them reviews for other projects.
+  The CLI logs get pruned, so the folders they name are kept in
+  `out/antigravity_folders.json`.
 - Prices are in `PRICES` at the top of `ingest.py`; update them and `PRICES_AS_OF`
   when Anthropic changes list prices.
 - The model palette in `ledger/index.html` was checked with the dataviz skill's
