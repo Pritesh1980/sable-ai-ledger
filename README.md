@@ -1,7 +1,7 @@
 # Sable AI usage
 
 **Sable AI Ledger**: https://claude.ai/artifact/9rkccTsV3vvha7mtggGaTh
-Source `ledger/index.html`. GSAP 3.15 (SplitText) and ECharts 6.1 from jsDelivr,
+Source `ledger/index.html`. GSAP 3.15 and ECharts 6.1 from jsDelivr,
 Marcellus and Archivo from Google Fonts, Sable's v2 palette. Loads `data/*.json`
 published beside the page. The earlier Dashboard-type page was retired on
 2026-10-21; its source is kept in `retired/dashboard/`. For raw rows, read `out/*.json`.
@@ -12,7 +12,7 @@ published beside the page. The earlier Dashboard-type page was retired on
 | Source | Path | What it gives |
 |---|---|---|
 | Claude Code transcripts | `~/.claude/projects/-Users-pritesh-code-tattoo-app/` | Tokens, cache, thinking, model, branch per reply |
-| Codex sessions | `~/.codex/sessions/` (filtered to this repo) | Tokens per call, model, role, branch |
+| Codex sessions | `~/.codex/sessions/` and `archived_sessions/`, plain or `.jsonl.zst` (filtered to this repo; needs the `zstd` tool) | Tokens per call, model, role, branch |
 | git + GitHub (`gh`) | the repo | PRs, issues, CI runs, diff sizes, rework |
 
 ## Refresh
@@ -21,6 +21,26 @@ Ask Claude Code: "refresh the Sable AI ledger". It runs `python3 ingest.py`, cop
 `ledger/index.html` and `out/{daily,tasks,prices,waveform}.json` into its scratchpad
 (published files must live there or in the working directory) and republishes to the
 ledger URL with the JSON files under `data/`.
+
+## Daily refresh
+
+`refresh.sh` rebuilds the data unattended. It runs the tests and the ingest, and
+commits `out/` if anything changed. launchd runs it at 07:43 every day, or on wake if
+the Mac was asleep then. It shows a macOS notification if anything fails.
+
+It does not republish the page. Publishing needs Claude Code's Artifact tool, which
+headless `claude -p` sessions don't have (tested 2026-10-26), so the page is
+republished from an interactive session ("publish the ledger").
+
+- Log: `~/Library/Logs/ai-ledger-refresh.log`
+- Run now: `launchctl kickstart gui/$(id -u)/local.sable.ai-ledger` (or `./refresh.sh`)
+- Install (done 2026-10-26): `cp launchd/local.sable.ai-ledger.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.sable.ai-ledger.plist`
+- Stop: `launchctl bootout gui/$(id -u)/local.sable.ai-ledger && rm ~/Library/LaunchAgents/local.sable.ai-ledger.plist`
+
+The ingest refuses to write `out/` when any past day holds fewer tokens than the last
+snapshot, which means logs went missing. That is what happened on 2026-10-26, when
+Codex began compressing old sessions to `.jsonl.zst`. Find the logs, or rerun with
+`python3 ingest.py --allow-shrink` to accept the loss.
 
 ## Tests
 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Daily Sable AI Ledger refresh. Install: see README "Daily refresh". -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.sable.ai-ledger</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/pritesh/code/ai-usage/refresh.sh</string>
+  </array>
+  <!-- 07:43 every day. If the Mac is asleep then, launchd runs it on wake. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>43</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/pritesh/Library/Logs/ai-ledger-refresh.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pritesh/Library/Logs/ai-ledger-refresh.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
