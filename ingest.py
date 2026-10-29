@@ -63,7 +63,6 @@ REBUILD_MIN = 50_000
 
 TEST_RE = re.compile(r'\b(npm (run )?test\b|npm run test:\w+|npx vitest|vitest run|npx playwright test)')
 FAIL_RE = re.compile(r'\b[1-9]\d* (failed|failing)\b')
-REVIEW_RE = re.compile(r'(?P<codex>\bcodex\b[^|;&\n]*\bexec\b)|(?P<agy>\bagy\b[^|;&\n]*(--print|\s-p\b))')
 COMMIT_RE = re.compile(r'\bgit\b[^|;&\n]*\bcommit\b(?!-)')
 GH_PR_RE = re.compile(r'\bgh pr (?:merge|create|view|checks|edit|comment|review|ready|diff)\s+(\d+)')
 PR_URL_RE = re.compile(r'github\.com/' + re.escape(REPO_SLUG) + r'/pull/(\d+)')
@@ -232,6 +231,183 @@ def anchor_task(anchors, session, at):
     if prev and at - prev[0] <= BEHIND:
         return prev[1]
     return None
+
+
+HEREDOC_RE = re.compile(r'(?<!<)<<-?\s*([\'"]?)([A-Za-z_]\w*)\1')
+WRAPPERS = {'nohup', 'time', 'command', 'exec', 'env', 'caffeinate', 'nice', 'sudo',
+            '!', '{', 'if', 'then', 'else', 'do', 'while', 'until'}
+
+
+def drop_heredocs(cmd):
+    out, ends = [], []
+    for line in cmd.split('\n'):
+        if ends:
+            if line.strip() == ends[0]:
+                ends.pop(0)
+            continue
+        out.append(line)
+        ends = [m.group(2) for m in HEREDOC_RE.finditer(line)]
+    return '\n'.join(out)
+
+
+def shell_commands(cmd):
+    """The words of each simple command in a Bash command line, in order. Not a parser, just
+    enough to tell what each command runs: heredoc bodies, comments and redirections are dropped,
+    and a quoted string stays one word, so `pgrep -f "codex exec"` is a pgrep."""
+    text = drop_heredocs(cmd).replace('\\\n', ' ')
+    cmds, words, word = [], [], []
+    state = {'started': False, 'target': False}
+
+    def end_word():
+        if word or state['started']:
+            if state['target']:
+                state['target'] = False
+            else:
+                words.append(''.join(word))
+        del word[:]
+        state['started'] = False
+
+    def end_command():
+        end_word()
+        if words:
+            cmds.append(list(words))
+        del words[:]
+
+    quote, i, n = None, 0, len(text)
+    while i < n:
+        ch = text[i]
+        if quote == "'":
+            if ch == "'":
+                quote = None
+            else:
+                word.append(ch)
+        elif quote == '"':
+            if ch == '\\' and i + 1 < n and text[i + 1] in '"\\$`':
+                word.append(text[i + 1])
+                i += 1
+            elif ch == '"':
+                quote = None
+            else:
+                word.append(ch)
+        elif ch in '\'"':
+            quote, state['started'] = ch, True
+        elif ch == '\\' and i + 1 < n:
+            word.append(text[i + 1])
+            i += 1
+        elif ch == '#' and not word and not state['started']:
+            while i + 1 < n and text[i + 1] != '\n':
+                i += 1
+        elif ch in ' \t':
+            end_word()
+        elif ch in ';&|()`\n':
+            end_command()
+        elif ch in '<>':
+            if word and ''.join(word).isdigit():  # the 2 in 2>&1
+                del word[:]
+            end_word()
+            while i + 1 < n and text[i + 1] in '<>&':
+                i += 1
+            state['target'] = True
+        else:
+            word.append(ch)
+        i += 1
+    end_command()
+    return cmds
+
+
+def program(words):
+    """A command's program and arguments, past variable assignments and wrappers like nohup or timeout 900."""
+    i = 0
+    while i < len(words):
+        w = words[i]
+        if re.match(r'^[A-Za-z_]\w*=', w):
+            i += 1
+        elif w in WRAPPERS or w in ('timeout', 'gtimeout'):
+            i += 1
+            while i < len(words) and words[i].startswith('-'):
+                i += 1
+            if w in ('timeout', 'gtimeout'):
+                i += 1  # the duration
+        else:
+            break
+    return words[i:]
+
+
+def review_tool(cmd):
+    """'codex' or 'agy' when the command runs a cross-model review (codex exec, agy --print),
+    else None. Polls such as `pgrep -f "codex exec"` and mentions in text do not count."""
+    for words in shell_commands(cmd):
+        argv = program(words)
+        if not argv:
+            continue
+        name = os.path.basename(argv[0])
+        if name == 'codex' and 'exec' in argv[1:]:
+            return 'codex'
+        if name == 'agy' and ('--print' in argv[1:] or '-p' in argv[1:]):
+            return 'agy'
+    return None
+
+
+def resolve_dir(path, cwd):
+    """An absolute folder for a cd or git -C argument, or None when it depends on a variable."""
+    for home in ('${HOME}', '$HOME', '~'):
+        if path == home or path.startswith(home + '/'):
+            path = HOME + path[len(home):]
+    if '$' in path or '`' in path or path.startswith('~') or path == '-':
+        return None
+    if not os.path.isabs(path):
+        if cwd is None:
+            return None
+        path = os.path.join(cwd, path)
+    return os.path.normpath(path)
+
+
+def is_other_repo(path):
+    """A folder under ~/code that is neither the Sable repo nor one of its worktrees, which live
+    inside it or beside it as tattoo-app-<name>."""
+    code, name = os.path.dirname(REPO), os.path.basename(REPO)
+    if not path or not path.startswith(code + '/'):
+        return False
+    top = path[len(code) + 1:].split('/')[0]
+    return top != name and not top.startswith(name + '-')
+
+
+def commits_elsewhere(cmd):
+    """Whether a git commit in this command ran in another repo under ~/code: after a cd there,
+    or through git -C. Sessions start in the Sable repo, and its worktrees count as Sable."""
+    cwd = REPO
+    for words in shell_commands(cmd):
+        argv = program(words)
+        if not argv:
+            continue
+        if argv[0] in ('cd', 'pushd'):
+            args = [w for w in argv[1:] if not w.startswith('-')]
+            cwd = resolve_dir(args[0], cwd) if args else HOME
+        elif os.path.basename(argv[0]) == 'git' and 'commit' in argv[1:]:
+            where = cwd
+            if '-C' in argv[:-1]:
+                where = resolve_dir(argv[argv.index('-C') + 1], cwd)
+            if is_other_repo(where):
+                return True
+    return False
+
+
+def anchor_commits(commit_cmds, commits, pr_numbers):
+    """Match each commit command to the commit it made. Returns [(session, time, task)] anchors
+    and {sha: task}. A command that committed in another repo matches no commit, and its anchor
+    has no task, so the work before it is not booked to a Sable commit made around the same time."""
+    used, anchors, commit_task = set(), [], {}
+    for cc in sorted(commit_cmds, key=lambda c: c['ts']):
+        if cc.get('elsewhere'):
+            anchors.append((cc['session'], cc['ts'], None))
+            continue
+        c = match_commit(commits, cc['ts'], used)
+        if c:
+            used.add(c['sha'])
+            key = task_for_commit(c['subject'], c['short'], pr_numbers)
+            commit_task[c['sha']] = key
+            anchors.append((cc['session'], c['at'], key))
+    return anchors, commit_task
 
 
 def task_for_commit(subject, short, pr_numbers):
@@ -843,7 +1019,7 @@ def build():
 
     # Anchors: moments a session committed, opened or acted on a PR.
     anchors = defaultdict(list)
-    used, commit_cmds, tests, reviews = set(), [], [], []
+    commit_cmds, tests, reviews = [], [], []
     for tid, tu in tool_uses.items():
         cmd = tu.get('command')
         if not cmd:
@@ -853,25 +1029,20 @@ def build():
         ts, text = res.get('ts') or r['ts'], res.get('text', '')
         if TEST_RE.search(cmd):
             tests.append(dict(reply=r['id'], failed=bool(res.get('error') or FAIL_RE.search(text))))
-        m = REVIEW_RE.search(cmd)
-        if m:
-            reviews.append(dict(reply=r['id'], reviewer='codex' if m.group('codex') else 'agy'))
+        reviewer = review_tool(cmd)
+        if reviewer:
+            reviews.append(dict(reply=r['id'], reviewer=reviewer))
         if COMMIT_RE.search(cmd) and res and not res.get('error'):
-            commit_cmds.append(dict(session=r['session'], ts=ts))
+            commit_cmds.append(dict(session=r['session'], ts=ts, elsewhere=commits_elsewhere(cmd)))
         for n in GH_PR_RE.findall(cmd):
             anchors[r['session']].append((ts, 'PR #' + n))
         if 'gh pr create' in cmd:
             for n in PR_URL_RE.findall(text):
                 anchors[r['session']].append((ts, 'PR #' + n))
     pr_nums = set(prs_by_num)
-    commit_task = {}
-    for cc in sorted(commit_cmds, key=lambda c: c['ts']):
-        c = match_commit(all_commits, cc['ts'], used)
-        if c:
-            used.add(c['sha'])
-            key = task_for_commit(c['subject'], c['short'], pr_nums)
-            commit_task[c['sha']] = key
-            anchors[cc['session']].append((c['at'], key))
+    commit_anchors, commit_task = anchor_commits(commit_cmds, all_commits, pr_nums)
+    for session, at, key in commit_anchors:
+        anchors[session].append((at, key))
     first_link = set()
     for pl in sorted(claude['pr_links'], key=lambda p: p['ts'] or datetime.min.replace(tzinfo=timezone.utc)):
         if pl['ts'] and (pl['session'], pl['pr']) not in first_link:

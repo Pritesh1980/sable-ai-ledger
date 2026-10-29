@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from unittest import mock
 
 import ingest as ing
 
@@ -146,6 +147,100 @@ class Attribution(unittest.TestCase):
         self.assertEqual(ing.match_commit(commits, t('2026-10-01T10:01:50'), set())['sha'], 'b' * 40)
         self.assertEqual(ing.match_commit(commits, t('2026-10-01T10:01:50'), {'b' * 40})['sha'], 'a' * 40)
         self.assertIsNone(ing.match_commit(commits, t('2026-10-01T11:00:00'), set()))
+
+
+class Reviews(unittest.TestCase):
+    def test_reviewer_runs_count(self):
+        runs = {
+            'codex exec --sandbox read-only "Review this diff"': 'codex',
+            '/Applications/ChatGPT.app/Contents/Resources/codex exec --sandbox read-only "$(cat p.txt)" > out.txt 2>&1 < /dev/null': 'codex',
+            'S=/tmp/x; cd $S && agy --print "$(cat agy.prompt)" > agy.out 2>&1 < /dev/null; echo "exit $?"': 'agy',
+            'cd /tmp/x && (nohup agy --print "Review this PR" > a.out 2>&1 &)': 'agy',
+            'SP=/tmp/x\ncodex exec --sandbox read-only "Review commit ac396a8"': 'codex',
+            'timeout 900 codex exec -C /tmp/x "Review it"': 'codex',
+            'git add -A && git commit -q -m "wip" && codex exec --sandbox read-only "Review it"': 'codex',
+            'agy -p "Review the plan"': 'agy',
+            "codex exec --sandbox read-only - <<'EOF'\nDon't modify files.\nEOF": 'codex',
+        }
+        for cmd, tool in runs.items():
+            self.assertEqual(ing.review_tool(cmd), tool, cmd)
+
+    def test_polls_and_mentions_do_not(self):
+        cmds = [
+            'pgrep -f "codex exec --skip-git-repo-check" >/dev/null && echo running || echo finished',
+            'until ! pgrep -f "codex exec.*PR #130" >/dev/null && ! pgrep -f "agy --print" >/dev/null; do sleep 20; done',
+            "ps aux | grep 'codex exec'",
+            'pkill -f "codex exec"',
+            'kill 48316 48314 2>/dev/null; sleep 1; pgrep -fl "codex exec" | head -3',
+            'wc -c /tmp/codex-exec.out; tail -5 /tmp/agy--print.txt',
+            "echo '- [Reviewer CLIs](x.md) — agy --print cannot run commands' >> MEMORY.md",
+            'git commit -q -m "docs: run codex exec before merging"',
+            "cat > notes.md <<'EOF'\ncodex exec --sandbox read-only \"x\"\nEOF\nls",
+            'codex --version',
+            'grep -n "agy --print" CLAUDE.md',
+            '# codex exec later\nls',
+        ]
+        for cmd in cmds:
+            self.assertIsNone(ing.review_tool(cmd), cmd)
+
+
+class OtherRepoCommits(unittest.TestCase):
+    def setUp(self):
+        patches = [mock.patch.object(ing, 'HOME', '/Users/me'),
+                   mock.patch.object(ing, 'REPO', '/Users/me/code/tattoo-app')]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_commits_into_another_repo_under_code(self):
+        cmds = [
+            'cd ~/code/ai-usage && git commit -q -m "feat: x"',
+            'cd $HOME/code/ai-usage && git add -A && git commit -m x',
+            'cd "${HOME}/code/ai-usage"; git commit -m x',
+            "cd /Users/me/code/ai-usage\ngit commit -F - <<'EOF'\nfeat: x\nEOF",
+            'git -C ~/code/ai-usage commit -m x',
+            'cd /Users/me/code/tattoo-app && git -C /Users/me/code/book commit -m x',
+            'cd ../ai-usage && git commit -m x',
+        ]
+        for cmd in cmds:
+            self.assertTrue(ing.commits_elsewhere(cmd), cmd)
+
+    def test_commits_in_sable_and_its_worktrees(self):
+        cmds = [
+            'git commit -m "fix: x"',
+            'cd /Users/me/code/tattoo-app && git commit -m x',
+            'cd ~/code/tattoo-app/.worktrees/fix-101 && git commit -m x',
+            'cd /Users/me/code/tattoo-app/.claude/worktrees/artist-refs; git add x && git commit -m y',
+            'git -C /Users/me/code/tattoo-app status && git commit -m x',
+            'cd ~/code/ai-usage && python3 ingest.py; cd /Users/me/code/tattoo-app && git commit -m x',
+            'cd $S && git commit -m x',
+            'git commit -m "docs: cd ~/code/ai-usage first"',
+            'cd /private/tmp/scratch && git commit -m x',
+            # worktrees kept beside the repo, as `git worktree add ../tattoo-app-radar`
+            'cd /Users/me/code/tattoo-app-radar && git add -A && git commit -m x',
+            'git -C ~/code/tattoo-app-concepts commit -m x',
+        ]
+        for cmd in cmds:
+            self.assertFalse(ing.commits_elsewhere(cmd), cmd)
+
+
+class CommitAnchors(unittest.TestCase):
+    def test_a_commit_in_another_repo_claims_no_sable_commit(self):
+        commits = [{'sha': 'a' * 40, 'short': '2e5c7eb', 'at': t('2026-10-24T10:00:30'),
+                    'subject': 'fix(sync): preserve delete ordering across pulls'}]
+        cmds = [dict(session='s1', ts=t('2026-10-24T10:00:00'), elsewhere=True)]
+        anchors, commit_task = ing.anchor_commits(cmds, commits, set())
+        self.assertEqual(commit_task, {})
+        # the anchor stays, with no task, so the work before it is not booked to Sable
+        self.assertEqual(anchors, [('s1', t('2026-10-24T10:00:00'), None)])
+        self.assertIsNone(ing.anchor_task({'s1': [(t('2026-10-24T10:00:00'), None)]}, 's1', t('2026-10-24T09:40:00')))
+
+    def test_a_sable_commit_command_anchors_its_commit(self):
+        commits = [{'sha': 'a' * 40, 'short': '2e5c7eb', 'at': t('2026-10-24T10:00:30'), 'subject': 'fix: x (#88)'}]
+        cmds = [dict(session='s1', ts=t('2026-10-24T10:00:00'), elsewhere=False)]
+        anchors, commit_task = ing.anchor_commits(cmds, commits, {88})
+        self.assertEqual(commit_task, {'a' * 40: 'PR #88'})
+        self.assertEqual(anchors, [('s1', t('2026-10-24T10:00:30'), 'PR #88')])
 
 
 class Classify(unittest.TestCase):
