@@ -498,7 +498,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div><dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads, and output including thinking.</dd></div>
       <div><dt>Task</dt><dd>A GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session.</dd></div>
       <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code and Codex agent work.</dd></div>
-      <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again, usually after a long break or a compaction.</dd></div>
+      <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again. Most come after a gap of an hour or more, when the prompt cache has expired; fewer follow a compaction.</dd></div>
       <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
       <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
       <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI. A run counts when it ran in Sable's folder or, with no folder on record, when its request names Sable. Tokens only, with no list prices.</dd></div>
@@ -724,7 +724,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     $('#ins-lede').replaceChildren(
       el('b', null, F.usd0(S.total)), ' of Claude work at API prices since ' + F.day(S.firstDay) + '. ',
       el('b', null, F.usd0(S.rereading)), ' of it went on reading and caching context, and ',
-      el('b', null, F.usd0(S.writing)), ' on what the models wrote. Keeping sessions short is the biggest lever.'
+      el('b', null, F.usd0(S.writing)), ' on what the models wrote. Every reply re-reads everything its session carries, so the biggest lever is scope: one task per session, and a fresh start rather than a cold resume of a big session.'
     );
     const lastCall = D.wave.rows[D.wave.rows.length - 1][0];
     $('#scope').textContent = 'Claude Code, Codex and Antigravity usage on Sable, with Claude priced at API list rates. Data through '
@@ -751,7 +751,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     $('#bill-copy').replaceChildren(
       'Of ', el('b', null, F.usd0(S.total)), ' since ' + F.day(S.firstDay) + ', reading from the cache took ',
       el('b', null, F.usd0(S.kindTotals[0])), ' and writing to it took ', el('b', null, F.usd0(S.kindTotals[1] + S.kindTotals[2])), '. ',
-      el('b', null, F.pct(S.rebuildShare)), ' of the tokens written were rebuilds: replies that had to put the whole conversation back in the cache after a long break or a compaction. Shorter sessions make each rebuild smaller.'
+      el('b', null, F.pct(S.rebuildShare)), ' of the tokens written were rebuilds: replies that had to put the whole conversation back in the cache, mostly the first reply after a gap of an hour or more, once the prompt cache had expired, and less often after a compaction. Starting a fresh session after a long gap, instead of resuming a big one, avoids most of them.'
     );
     modelsCopy(D, S);
     workCopy(S);
@@ -1426,7 +1426,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     { key: 'prompts', label: 'Prompts you typed' },
     { key: 'test_runs', label: 'Test runs' },
     { key: 'test_failures', label: 'Failed test runs', note: 'Includes the failures TDD writes on purpose' },
-    { key: 'review_runs', label: 'Review rounds', note: 'Codex or agy critiques' },
+    { key: 'review_runs', label: 'Review rounds', note: 'Runs of codex exec or agy --print, not polls' },
     { key: 'commits', label: 'Commits' },
     { key: 'ci_cycles', label: 'CI runs', note: 'Commits CI ran on' },
     { key: 'active_minutes', label: 'Active minutes', note: 'Pauses over 5 minutes not counted' },
@@ -1446,7 +1446,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       'On average CI ran ', el('b', null, perTask), (perTask === '1' ? ' time' : ' times') + ' per task and failed ',
       el('b', null, String(ciFails)), ' of ' + ciRuns + ' runs, so the loops happen before you push: ',
       el('b', null, F.one(mean(all.map((t) => t.test_runs)))), ' test runs, ',
-      el('b', null, F.one(mean(all.map((t) => t.review_runs)))), ' review rounds and ',
+      el('b', null, F.one(mean(all.map((t) => t.review_runs)))), ' review rounds (runs of codex exec or agy --print) and ',
       el('b', null, F.one(mean(all.map((t) => t.prompts)))), ' prompts per task.',
     ];
     if (pair.length === 2) {

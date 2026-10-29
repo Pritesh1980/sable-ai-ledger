@@ -17,6 +17,12 @@ published beside the page. The earlier Dashboard-type page was retired on
 | Gemini CLI (before agy) | `~/.gemini/tmp/<project>/chats/` | Tokens per reply, model |
 | git + GitHub (`gh`) | the repo | PRs, issues, CI runs, diff sizes, rework |
 
+Do ledger work from this folder: `cd ~/code/ai-usage && claude`. A session started in
+the Sable checkout logs its transcript under Sable's project folder, so its cost is
+booked to Sable. The ingest leaves a commit made into another repo under `~/code`
+unattributed rather than booking it to a Sable task, but every other reply in that
+session still counts as Sable usage.
+
 ## Refresh
 
 Ask Claude Code: "refresh the Sable AI ledger". It runs `python3 ingest.py`, copies
