@@ -471,10 +471,11 @@ def rework_count(task_files, shipped, main_commits, own=(), days=14):
 ROLE_CODES = {'main': 0, 'agent': 0, 'subagent': 1, 'review': 2, 'auto-review': 3}
 
 
-def build_waveform(replies, codex_rows, since):
-    """Every Claude reply and Codex call since `since`, oldest first, as compact rows:
-    [unix time, model index, tool (0 Claude, 1 Codex), context, output, cache written,
-    rebuild 0/1, role (0 main/agent, 1 subagent, 2 review, 3 auto-review), task index or -1]."""
+def build_waveform(replies, codex_rows, since, agy_rows=()):
+    """Every Claude reply, Codex call and Antigravity call since `since`, oldest first, as compact rows:
+    [unix time, model index, tool (0 Claude, 1 Codex, 2 Antigravity), context, output, cache written,
+    rebuild 0/1, role (0 main/agent, 1 subagent, 2 review, 3 auto-review), task index or -1].
+    Antigravity can run Claude models too, so the tool, not the model, says where a call came from."""
     calls = []
     for r in replies:
         if r['ts'] >= since:
@@ -483,6 +484,9 @@ def build_waveform(replies, codex_rows, since):
     for c in codex_rows:
         if c['ts'] >= since:
             calls.append((c['ts'], 1, c['model'], c['usage'], 0, c['role'], c.get('task')))
+    for a in agy_rows:
+        if a['ts'] >= since:
+            calls.append((a['ts'], 2, a['model'], a['usage'], 0, a['role'], a.get('task')))
     calls.sort(key=lambda c: c[0])
     models, tasks, rows = {}, {}, []
     for ts, tool, model, u, rebuild, role, task in calls:
@@ -1244,7 +1248,7 @@ def build():
         json.dump(agy_folders, f, indent=0, sort_keys=True)
     # The last 30 days: the window both Claude Code and Codex logs fully cover.
     since = replies[-1]['ts'] - timedelta(days=30)
-    waveform = build_waveform(replies, codex_rows, since)
+    waveform = build_waveform(replies, codex_rows, since, agy_rows)
     with open(os.path.join(OUT, 'waveform.json'), 'w') as f:
         json.dump(waveform, f, separators=(',', ':'))
     print('  out/waveform.json  %d calls since %s  %d KB' % (

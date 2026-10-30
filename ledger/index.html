@@ -309,11 +309,11 @@ details.numbers[open] summary { margin-bottom: 10px; }
       </div>
     </div>
     <figure class="wave">
-      <canvas id="wave" tabindex="0" role="img" aria-label="Waveform of every model call in the last 30 days"></canvas>
+      <canvas id="wave" tabindex="0" role="img" aria-label="Waveform of every model call in the last 30 days: Claude Code above the line, Codex and Antigravity below it"></canvas>
       <div class="wave-tip" id="wave-tip" hidden aria-live="polite"></div>
       <figcaption class="wrap wave-foot">
         <div class="wave-cap">
-          <p style="margin:0">Every model call in the last 30 days, oldest on the left. Claude Code rises above the line and Codex hangs below it. Height is the number of tokens the call read.</p>
+          <p style="margin:0">Every model call in the last 30 days, oldest on the left. Claude Code rises above the line. Codex and Antigravity hang below it, Antigravity in violet whichever model it ran. Height is the number of tokens the call read.</p>
           <p style="margin:8px 0 0">Each ramp is one session: every reply re-reads everything before it, so it climbs until the session is cleared or compacted. Calls are evenly spaced, so busy days take more room than quiet ones. Point at it, or focus it and use the arrow keys, to read any call.</p>
         </div>
         <ul class="legend" id="wave-legend"></ul>
@@ -569,6 +569,9 @@ details.numbers[open] summary { margin-bottom: 10px; }
     { id: 'claude-opus-4-8', name: 'Opus 4.8', color: cssv('--m-opus48') },
     { id: 'claude-sonnet-5', name: 'Sonnet 5', color: cssv('--m-sonnet5') },
     { id: 'other', name: 'Other models', color: cssv('--m-other') },
+    // A tool, not a model, like Codex: only the waveform uses it. Antigravity runs Gemini and Claude alike,
+    // so its calls take Gemini's violet whatever the model, and no model ever maps here through groupOf.
+    { id: 'agy', name: 'Antigravity', color: cssv('--m-gemini') },
   ];
   const GROUP = Object.fromEntries(GROUPS.map((g) => [g.id, g]));
   const groupOf = (m) => (!m ? 'other' : m.startsWith('gpt-') || m.startsWith('codex') ? 'codex' : GROUP[m] ? m : 'other');
@@ -833,6 +836,10 @@ details.numbers[open] summary { margin-bottom: 10px; }
 
   // ---------------------------------------------------------------- waveform
   const wave = { p: 1, hover: -1 };
+  // Row tool codes from ingest.py: 0 Claude Code (above the line), 1 Codex and 2 Antigravity (below it).
+  // Claude Code is coloured by model; the other two by tool.
+  const WAVE_TOOLS = ['Claude Code', 'Codex', 'Antigravity'];
+  const waveGroup = (r) => (r[2] === 1 ? 'codex' : r[2] === 2 ? 'agy' : groupOf(wave.models[r[1]]));
   function initWave(D, S) {
     const W = D.wave;
     wave.rows = W.rows;
@@ -843,15 +850,16 @@ details.numbers[open] summary { margin-bottom: 10px; }
     wave.tip = $('#wave-tip');
     const n = W.rows.length;
     wave.maxUp = Math.max(1, ...W.rows.filter((r) => r[2] === 0).map((r) => r[3]));
-    wave.maxDown = Math.max(1, ...W.rows.filter((r) => r[2] === 1).map((r) => r[3]));
+    wave.maxDown = Math.max(1, ...W.rows.filter((r) => r[2] !== 0).map((r) => r[3]));
     // Indices per colour, so each colour is one fillStyle change.
     const byColor = new Map();
     W.rows.forEach((r, i) => {
-      const g = r[2] === 1 ? 'codex' : groupOf(W.models[r[1]]);
+      const g = waveGroup(r);
       if (!byColor.has(g)) byColor.set(g, []);
       byColor.get(g).push(i);
     });
-    wave.byColor = byColor;
+    // Antigravity is a few dozen calls among thousands, so it is drawn last, over Codex.
+    wave.byColor = new Map([...byColor].sort((a, b) => (a[0] === 'agy') - (b[0] === 'agy')));
     wave.rebuilds = W.rows.map((r, i) => (r[6] ? i : -1)).filter((i) => i >= 0);
     wave.days = [];
     let prev = '';
@@ -958,14 +966,16 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const bw = Math.max(1, step * 0.92);
     for (const [g, idx] of wave.byColor) {
       ctx.fillStyle = GROUP[g].color;
-      ctx.globalAlpha = g === 'codex' ? 0.62 : 0.72;
+      // Antigravity at full strength and at least 2.5px wide, or its few calls vanish among Codex's
+      ctx.globalAlpha = g === 'codex' ? 0.62 : g === 'agy' ? 1 : 0.72;
+      const ww = g === 'agy' ? Math.max(2.5, bw) : bw;
       for (const i of idx) {
         if (i >= n) break;
         const r = rows[i];
         const hh = Math.max(1, r[3] * k);
         const x = padL + i * step;
-        if (r[2] === 0) ctx.fillRect(x, mid - hh, bw, hh);
-        else ctx.fillRect(x, mid + 1, bw, hh);
+        if (r[2] === 0) ctx.fillRect(x, mid - hh, ww, hh);
+        else ctx.fillRect(x, mid + 1, ww, hh);
       }
     }
     // cache rebuild sparks
@@ -995,7 +1005,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     ctx.lineJoin = 'round';
     ctx.lineWidth = 4;
     ctx.strokeStyle = T.ink;
-    for (const [name, y] of [['Claude Code', mid - 12], ['Codex', mid + 14]]) {
+    for (const [name, y] of [['Claude Code', mid - 12], ['Codex and Antigravity', mid + 14]]) {
       ctx.strokeText(name, padL + 6, y);
       ctx.fillStyle = T.bone;
       ctx.fillText(name, padL + 6, y);
@@ -1023,7 +1033,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       ctx.fillRect(Math.round(x), 20, 1, h - 46);
       ctx.beginPath();
       ctx.arc(x, r[2] === 0 ? mid - hh : mid + hh, 4, 0, Math.PI * 2);
-      ctx.fillStyle = r[2] === 1 ? GROUP.codex.color : GROUP[groupOf(wave.models[r[1]])].color;
+      ctx.fillStyle = GROUP[waveGroup(r)].color;
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = T.ink;
@@ -1039,10 +1049,10 @@ details.numbers[open] summary { margin-bottom: 10px; }
     if (i < 0) { tip.hidden = true; return; }
     const r = wave.rows[i];
     const model = wave.models[r[1]];
-    const g = r[2] === 1 ? GROUP.codex : GROUP[groupOf(model)];
+    const g = GROUP[waveGroup(r)];
     const when = new Date(r[0] * 1000).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const who = el('div', 'who');
-    const name = (r[2] === 1 ? 'Codex, ' : 'Claude Code, ') + (g.id === 'codex' || g.id === 'other' ? model : g.name);
+    const name = WAVE_TOOLS[r[2]] + ', ' + (g.id === 'agy' ? modelName(model) : g.id === 'codex' || g.id === 'other' ? model : g.name);
     who.append(swatch(g.color), name + (ROLES[r[7]] ? ' (' + ROLES[r[7]].toLowerCase() + ')' : ''));
     const row = (a, b) => {
       const d = el('div', 'row');

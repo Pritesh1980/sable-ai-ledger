@@ -271,6 +271,36 @@ class Waveform(unittest.TestCase):
         self.assertEqual(codex_row[1:], [0, 1, 116, 7, 15, 0, 2, -1])
         self.assertEqual(claude_row[1:], [1, 0, 116, 7, 15, 1, 0, 0])
 
+    def test_adds_antigravity_calls_as_tool_2_in_time_order(self):
+        u = dict(input=1, cw5=10, cw1h=5, cache_read=100, output=7, thinking=0)
+        g = dict(input=40, cw5=0, cw1h=0, cache_read=60, output=3, thinking=0)
+        replies = [dict(ts=t('2026-10-02T10:00:00'), model='claude-opus-5-5', usage=u, rebuild=False,
+                        sidechain=True, task='PR #5')]
+        codex = [dict(ts=t('2026-10-03T09:00:00'), model='gpt-6-sol', usage=u, role='review', task='PR #5')]
+        agy = [
+            dict(ts=t('2026-10-02T12:00:00'), tool='Antigravity', model='gemini-3.6-flash', role='review', usage=g),
+            dict(ts=t('2026-10-01T08:00:00'), tool='Antigravity', model='claude-opus-5-5', role='agent', usage=g),
+            dict(ts=t('2026-09-01T08:00:00'), tool='Antigravity', model='gemini-4-argon', role='agent', usage=g),
+        ]
+        w = ing.build_waveform(replies, codex, since=t('2026-09-21T00:00:00'), agy_rows=agy)
+        # The September call is outside the window, so its model never gets an index.
+        self.assertEqual(w['models'], ['claude-opus-5-5', 'gemini-3.6-flash', 'gpt-6-sol'])
+        self.assertEqual(w['tasks'], ['PR #5'])
+        self.assertEqual([r[2] for r in w['rows']], [2, 0, 2, 1])
+        self.assertEqual([r[0] for r in w['rows']], sorted(r[0] for r in w['rows']))
+        agy_first, claude_row, agy_review, codex_row = w['rows']
+        # [time, model, tool, context, output, cache write, rebuild, role, task]
+        self.assertEqual(agy_first[1:], [0, 2, 100, 3, 0, 0, 0, -1])
+        self.assertEqual(agy_review[1:], [1, 2, 100, 3, 0, 0, 2, -1])
+        self.assertEqual(claude_row[1:], [0, 0, 116, 7, 15, 0, 1, 0])
+        self.assertEqual(codex_row[1:], [2, 1, 116, 7, 15, 0, 2, 0])
+
+    def test_antigravity_rows_are_optional(self):
+        u = dict(input=1, cw5=0, cw1h=0, cache_read=0, output=1, thinking=0)
+        replies = [dict(ts=t('2026-10-02T10:00:00'), model='m', usage=u, sidechain=False)]
+        w = ing.build_waveform(replies, [], since=t('2026-09-21T00:00:00'))
+        self.assertEqual([r[2] for r in w['rows']], [0])
+
 
 class Rework(unittest.TestCase):
     def test_counts_later_fixes_to_the_same_source_files(self):
