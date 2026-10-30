@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from datetime import datetime, timezone
 from unittest import mock
@@ -252,6 +253,29 @@ class Classify(unittest.TestCase):
 
     def test_size_bucket(self):
         self.assertEqual([ing.size_bucket(n) for n in (50, 100, 500, 2000, None)], ['S', 'M', 'L', 'XL', None])
+
+
+class LocalTime(unittest.TestCase):
+    # Tasks shipped on the same day need their time too, so the page can order them.
+    def setUp(self):
+        self.tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'Europe/London'
+        time.tzset()
+
+    def tearDown(self):
+        if self.tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = self.tz
+        time.tzset()
+
+    def test_local_time_agrees_with_local_day_and_sorts_as_text(self):
+        late = t('2026-09-22T23:30:00')  # BST, so the next local day
+        self.assertEqual(ing.local_time(late), '2026-09-23T00:30:00')
+        self.assertEqual(ing.local_time(late)[:10], ing.local_day(late))
+        self.assertEqual(ing.local_time(t('2026-10-29T23:30:00')), '2026-10-29T23:30:00')  # GMT
+        stamps = [t('2026-10-29T09:05:00'), t('2026-10-29T17:40:00'), t('2026-10-29T10:00:00')]
+        self.assertEqual(sorted(stamps), [s for _, s in sorted((ing.local_time(s), s) for s in stamps)])
 
 
 class Waveform(unittest.TestCase):

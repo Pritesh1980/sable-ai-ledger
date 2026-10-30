@@ -441,7 +441,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       </div>
       <div class="pair-wide">
         <p class="chart-title">Cost per shipped task, week by week</p>
-        <p class="chart-note">Each dot is a task, placed in the week it shipped and coloured by its lead model. The bar marks the week's median. Weeks start on Monday, and history begins on 22 September, so this fills in as you work.</p>
+        <p class="chart-note">Each dot is a task, placed in the week it shipped and coloured by its lead model. The bar marks the week's median. The line is the median of the last 10 shipped tasks, updated as each one ships. Weeks start on Monday, and history begins on 22 September, so this fills in as you work.</p>
         <div class="chart" id="chart-weekly" style="height: 320px"></div>
       </div>
     </div>
@@ -1506,10 +1506,19 @@ details.numbers[open] summary { margin-bottom: 10px; }
     return isoDay(d.getTime() / 1000);
   };
   // Shipped tasks with a Claude cost, grouped by the Monday of the week they shipped, oldest first.
+  // From the start of continuous Claude Code logs, not the 30-day window, so this history keeps growing.
   function shippedWeeks(S) {
-    const shipped = S.tasks.filter((t) => t.shipped && t.shipped >= S.firstDay && t.cost_usd > 0);
+    const shipped = S.tasks.filter((t) => t.shipped && t.shipped >= CLAUDE_LOGS_FROM && t.cost_usd > 0);
     const weeks = [...new Set(shipped.map((t) => monday(t.shipped)))].sort();
     return { shipped, weeks, byWeek: new Map(weeks.map((w) => [w, shipped.filter((t) => monday(t.shipped) === w)])) };
+  }
+  // After each task ships, the median Claude cost of the n most recent shipped tasks, so it starts at the nth.
+  // Needs every task's ship time (shipped_at): ordering by ship day alone leaves same-day tasks in no order.
+  const ROLL_N = 10;
+  function rollingMedian(tasks, n) {
+    if (!tasks.every((t) => t.shipped_at)) return [];
+    const order = tasks.slice().sort((a, b) => a.shipped_at.localeCompare(b.shipped_at));
+    return order.slice(n - 1).map((t, i) => ({ task: t, value: median(order.slice(i, i + n).map((x) => x.cost_usd)) }));
   }
 
   function daysCopy(D, S) {
@@ -1523,14 +1532,12 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const copy = ['Claude Code worked on ', el('b', null, String(worked)), ' of the ' + span + ' days since ' + F.day(S.firstDay) + '. '];
     const top = [...byDay.entries()].sort((a, b) => b[1] - a[1])[0];
     if (top) copy.push('The busiest was ' + F.dayLong(top[0]) + ', at ', el('b', null, F.usd(top[1])), '. ');
-    // Compare only weeks with enough shipped tasks for a median to mean something.
-    const { weeks, byWeek } = shippedWeeks(S);
-    const full = weeks.filter((w) => byWeek.get(w).length >= 3);
-    if (full.length >= 2) {
-      const med = (w) => median(byWeek.get(w).map((t) => t.cost_usd));
-      const a = full[0], b = full[full.length - 1];
-      copy.push('The median shipped task cost ', el('b', null, F.usd(med(a))), ' in the week of ' + F.day(a) + ' and ',
-        el('b', null, F.usd(med(b))), ' in the week of ' + F.day(b) + '.');
+    // The trend line's first and latest points: weekly medians swing with how many tasks shipped.
+    const roll = rollingMedian(shippedWeeks(S).shipped, ROLL_N);
+    if (roll.length >= 2) {
+      const a = roll[0], b = roll[roll.length - 1];
+      copy.push('The median cost of the last ' + ROLL_N + ' shipped tasks was ', el('b', null, F.usd(a.value)), ' on ' + F.day(a.task.shipped) + ' and ',
+        el('b', null, F.usd(b.value)), ' on ' + F.day(b.task.shipped) + '.');
     }
     $('#days-copy').replaceChildren(...copy);
   }
@@ -1566,25 +1573,35 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const counts = new Map(weeks.map((w) => [cat(w), byWeek.get(w).length]));
     const lead = (t) => t.group || 'other';
     const groups = GROUPS.filter((g) => shipped.some((t) => lead(t) === g.id));
+    // The rolling line sits on a hidden value axis laid over the week bands: band i spans i - 0.5 (Monday 00:00)
+    // to i + 0.5 (the next Monday), so each point lands at the hour its task shipped.
+    const ROLL = 'Median of last ' + ROLL_N;
+    const weekPos = (t) => weeks.indexOf(monday(t.shipped)) - 0.5
+      + (Date.parse(t.shipped_at + 'Z') - Date.parse(monday(t.shipped) + 'T00:00:00Z')) / 6048e5;
+    const roll = rollingMedian(shipped, ROLL_N);
+    const narrow = window.innerWidth < 640;
     const chart = make('chart-weekly');
     chart.setOption(Object.assign(base(), {
-      grid: { left: 52, right: 24, top: 40, bottom: 48 },
+      grid: { left: 52, right: 24, top: narrow ? 68 : 40, bottom: 48 }, // the legend wraps on a phone
       legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, itemGap: 16, textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
       tooltip: Object.assign({}, TIP, {
         trigger: 'item',
         formatter: (p) => {
           if (p.seriesName === 'Weekly median') return esc(p.value[0]) + '<br>Median <b>' + F.usd(p.value[1]) + '</b> across ' + counts.get(p.value[0]) + ' tasks';
+          if (p.seriesName === ROLL) return 'Median <b>' + F.usd(p.value[1]) + '</b> across the last ' + ROLL_N + ' shipped tasks'
+            + '<div style="color:#a8a294;margin-top:4px">after ' + esc(p.data.task.task) + ' shipped, ' + F.day(p.data.task.shipped) + '</div>';
           const t = p.data.task;
           return '<div style="max-width:260px;white-space:normal"><b>' + esc(t.task) + '</b> ' + esc(t.title) + '</div>'
             + '<div style="color:#a8a294;margin-top:4px">' + F.usd(t.cost_usd) + ' Claude cost, shipped ' + F.day(t.shipped) + '</div>';
         },
       }),
-      xAxis: {
+      xAxis: [{
         type: 'category', data: weeks.map(cat), jitter: 70, jitterOverlap: false, jitterMargin: 2,
         axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false },
         axisLabel: Object.assign({}, AXIS_LABEL, { lineHeight: 15, formatter: (v) => v + '\n' + counts.get(v) + (counts.get(v) === 1 ? ' task' : ' tasks') }),
-      },
-      yAxis: { type: 'value', splitNumber: 4, axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => '$' + v }), splitLine: { lineStyle: { color: '#35312b' } } },
+      }, { type: 'value', min: -0.5, max: weeks.length - 0.5, show: false }],
+      // No axis line or ticks: they would sit on the hidden value axis's zero, in the first week.
+      yAxis: { type: 'value', splitNumber: 4, axisLine: { show: false }, axisTick: { show: false }, axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => '$' + v }), splitLine: { lineStyle: { color: '#35312b' } } },
       series: [
         ...groups.map((g) => ({
           type: 'scatter', name: g.name, symbolSize: 9,
@@ -1593,10 +1610,19 @@ details.numbers[open] summary { margin-bottom: 10px; }
           data: shipped.filter((t) => lead(t) === g.id).map((t) => ({ value: [cat(monday(t.shipped)), t.cost_usd], task: t })),
         })),
         {
-          type: 'line', name: 'Weekly median', z: 5, symbol: 'rect', symbolSize: [46, 3], showSymbol: true,
+          // On a phone a week is ~50px wide: a shorter bar, and its figure moves to the tooltip.
+          type: 'line', name: 'Weekly median', z: 5, symbol: 'rect', symbolSize: [narrow ? 24 : 46, 3], showSymbol: true,
           lineStyle: { opacity: 0 }, itemStyle: { color: '#efe9dc' },
-          label: { show: true, position: 'right', distance: 6, color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: 11, formatter: (p) => F.usd(p.value[1]) },
+          label: { show: !narrow, position: 'right', distance: 6, color: '#efe9dc', fontFamily: 'Archivo, sans-serif', fontSize: 11,
+            textBorderColor: '#131110', textBorderWidth: 3, formatter: (p) => F.usd(p.value[1]) },
           data: weeks.map((w) => [cat(w), Math.round(median(byWeek.get(w).map((t) => t.cost_usd)) * 100) / 100]),
+        },
+        {
+          // Each value holds until the next task ships, hence the steps.
+          type: 'line', name: ROLL, xAxisIndex: 1, z: 4, step: 'end', symbol: 'circle', symbolSize: 7, showSymbol: true,
+          lineStyle: { color: '#efe9dc', width: 1.5, opacity: 0.7, join: 'round' },
+          itemStyle: { color: '#efe9dc', opacity: 0 }, emphasis: { itemStyle: { opacity: 1 } },
+          data: roll.map((r) => ({ value: [weekPos(r.task), Math.round(r.value * 100) / 100], task: r.task })),
         },
       ],
     }));

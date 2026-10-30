@@ -92,6 +92,10 @@ def local_day(d):
     return d.astimezone().strftime('%Y-%m-%d')
 
 
+def local_time(d):
+    return d.astimezone().strftime('%Y-%m-%dT%H:%M:%S')
+
+
 def norm_model(m):
     if not m:
         return 'unknown'
@@ -1210,6 +1214,7 @@ def build():
             state=state, lines=lines, size=size_bucket(lines), commits=commits,
             started=local_day(times[0]) if times else None,
             shipped=local_day(shipped) if shipped else None,
+            shipped_at=local_time(shipped) if shipped else None,
             primary_model=primary, primary_share=share,
             models=', '.join(m for m, _ in agent_out.most_common()),
             cost_usd=round(a['cost'], 4), replies=a['replies'], subagent_replies=a['subagent'],
