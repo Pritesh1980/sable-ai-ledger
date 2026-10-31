@@ -47,7 +47,22 @@ Artifact tool (tested 2026-10-26), so it can't publish:
 
 If the Mac sleeps through both times, the page shows the previous day's data until
 the next morning. Change the page itself by committing `ledger/index.html` and
-pushing: the next routine run publishes it.
+pushing. When the repo's page differs from the live one, the Artifact tool refuses
+the routine's first publish. The routine then saves the live page and runs
+`python3 check_live.py <saved page>`, which strips the wrapper publishing adds and
+compares the rest with every commit of `ledger/index.html`:
+
+- **Exit 0**: the live page is an older commit, so nothing outside git would be
+  lost. The routine publishes again, and once more if that is refused as identical
+  content (the tool lets the third attempt through).
+- **Exit 1**: the live page matches no commit, so it was edited outside git. The
+  routine stops and quotes the script's output. Bring those edits into the repo, or
+  publish over them by hand.
+- **Exit 2**: it can't tell (for example a shallow clone). The routine stops and
+  quotes the output.
+
+The routine run's status says "succeeded" even when it stopped, so read its last line,
+or check that the page's version moved.
 
 - Log: `~/Library/Logs/ai-ledger-refresh.log`
 - Run now: `launchctl kickstart gui/$(id -u)/local.sable.ai-ledger` (or `./refresh.sh`)
