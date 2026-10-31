@@ -43,7 +43,8 @@ Artifact tool (tested 2026-10-26), so it can't publish:
    (https://claude.ai/code/routines/trig_01VUxd2ZaoXVZNKrvfjTSHRX) clones that repo and
    republishes the page from `ledger/index.html` and `out/*.json`. It runs on Sonnet 5.5
    with only the Artifact, Read, Bash and Glob tools, and no Gmail, Drive or Calendar
-   connectors. Its runs are listed on the routine's page.
+   connectors. Its runs are listed on the routine's page. Its prompt is kept in
+   `routine-prompt.txt`; only the owner can edit the routine, so paste changes there by hand.
 
 If the Mac sleeps through both times, the page shows the previous day's data until
 the next morning. Change the page itself by committing `ledger/index.html` and
