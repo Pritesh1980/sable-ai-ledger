@@ -36,7 +36,8 @@ Two halves, because the logs live on this Mac but headless `claude -p` has no
 Artifact tool (tested 2026-10-26), so it can't publish:
 
 1. **07:43, this Mac.** launchd runs `refresh.sh`, or runs it on wake if the Mac was
-   asleep. It runs the tests and the ingest, commits `out/` if anything changed, and
+   asleep. It pulls from GitHub first (so a page or script change pushed from
+   elsewhere can't block its push), then runs the tests and the ingest, commits `out/` if anything changed, and
    pushes to the private repo https://github.com/Pritesh1980/sable-ai-ledger. It
    shows a macOS notification if anything fails.
 2. **08:13 UTC, the cloud.** The routine "Sable AI Ledger: daily republish"

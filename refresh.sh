@@ -15,6 +15,10 @@ notify() { osascript -e "display notification \"$1\" with title \"Sable AI Ledge
 trap 'notify "Refresh failed. See $LOG"; echo "FAILED at line $LINENO" >&2' ERR
 
 echo "== $(date '+%F %T')"
+# Catch up with GitHub first. Page and script changes are pushed from elsewhere
+# (cloud sessions), and a main that's behind origin can't push the day's data.
+# --rebase replays any data commit a failed run left unpushed on top.
+git pull -q --rebase --autostash origin main
 "$PY" -m unittest -q 2>&1 | tail -1
 "$PY" ingest.py          # stops without writing if any past day lost tokens
 if git diff --quiet -- out; then
