@@ -1,6 +1,10 @@
 # Sable AI usage
 
 **Sable AI Ledger**: https://claude.ai/artifact/9rkccTsV3vvha7mtggGaTh
+**Public mirror** (GitHub Pages): https://pritesh1980.github.io/sable-ai-ledger/ —
+rebuilt by `.github/workflows/pages.yml` on every push that touches `ledger/` or `out/`.
+The repo is public, so everything in it, data included, is readable by anyone.
+
 Source `ledger/index.html`. GSAP 3.15 and ECharts 6.1 from jsDelivr,
 Marcellus and Archivo from Google Fonts, Sable's v2 palette. Loads `data/*.json`
 published beside the page. The earlier Dashboard-type page was retired on
