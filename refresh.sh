@@ -31,6 +31,15 @@ fi
 # Push anything unpushed. The push redeploys the GitHub Pages site
 # (.github/workflows/pages.yml).
 if [ -n "$(git log origin/main..HEAD --oneline)" ]; then
-  git push -q origin main
-  echo "Pushed to origin/main"
+  # GitHub sometimes answers a push with a 500 that clears on retry
+  # (seen 2026-11-04), so try up to 4 times before failing the run.
+  for attempt in 1 2 3 4; do
+    if git push -q origin main; then
+      echo "Pushed to origin/main"
+      break
+    fi
+    [ "$attempt" -lt 4 ] || false   # out of tries: fails the run, ERR trap notifies
+    echo "Push failed (attempt $attempt), retrying in 20s"
+    sleep 20
+  done
 fi
