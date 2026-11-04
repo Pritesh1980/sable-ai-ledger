@@ -1,9 +1,10 @@
 # Sable AI usage
 
-**Sable AI Ledger**: https://claude.ai/artifact/9rkccTsV3vvha7mtggGaTh
-**Public mirror** (GitHub Pages): https://pritesh1980.github.io/sable-ai-ledger/ —
-rebuilt by `.github/workflows/pages.yml` on every push that touches `ledger/` or `out/`.
-The repo is public, so everything in it, data included, is readable by anyone.
+**Sable AI Ledger** (GitHub Pages): https://pritesh1980.github.io/sable-ai-ledger/
+Rebuilt by `.github/workflows/pages.yml` on every push that touches `ledger/` or `out/`.
+The repo is public (since 2026-11-04), so everything in it, data included, is readable
+by anyone. The old claude.ai artifact (https://claude.ai/artifact/9rkccTsV3vvha7mtggGaTh)
+is no longer updated.
 
 Source `ledger/index.html`. GSAP 3.15 and ECharts 6.1 from jsDelivr,
 Marcellus and Archivo from Google Fonts, Sable's v2 palette. Loads `data/*.json`
@@ -29,46 +30,25 @@ session still counts as Sable usage.
 
 ## Refresh
 
-Ask Claude Code: "refresh the Sable AI ledger". It runs `python3 ingest.py`, copies
-`ledger/index.html` and `out/{daily,tasks,prices,waveform}.json` into its scratchpad
-(published files must live there or in the working directory) and republishes to the
-ledger URL with the JSON files under `data/`.
+Run `./refresh.sh`. It ingests, commits `out/` and pushes; the push redeploys the page.
+The Pages workflow adds the document skeleton (`<!doctype html>`, charset, viewport)
+in front of `ledger/index.html` and copies `out/{daily,tasks,prices,waveform}.json`
+to `data/`, which is where the page fetches them from.
 
 ## Daily refresh
 
-Two halves, because the logs live on this Mac but headless `claude -p` has no
-Artifact tool (tested 2026-10-26), so it can't publish:
+At 07:43 launchd runs `refresh.sh` on this Mac, or runs it on wake if the Mac was
+asleep. It pulls from GitHub first (so a page or script change pushed from elsewhere
+can't block its push), then runs the tests and the ingest, commits `out/` if anything
+changed, and pushes to https://github.com/Pritesh1980/sable-ai-ledger. That push runs
+the Pages workflow. It shows a macOS notification if anything fails.
 
-1. **07:43, this Mac.** launchd runs `refresh.sh`, or runs it on wake if the Mac was
-   asleep. It pulls from GitHub first (so a page or script change pushed from
-   elsewhere can't block its push), then runs the tests and the ingest, commits `out/` if anything changed, and
-   pushes to the private repo https://github.com/Pritesh1980/sable-ai-ledger. It
-   shows a macOS notification if anything fails.
-2. **08:13 UTC, the cloud.** The routine "Sable AI Ledger: daily republish"
-   (https://claude.ai/code/routines/trig_01VUxd2ZaoXVZNKrvfjTSHRX) clones that repo and
-   republishes the page from `ledger/index.html` and `out/*.json`. It runs on Sonnet 5.5
-   with only the Artifact, Read, Bash and Glob tools, and no Gmail, Drive or Calendar
-   connectors. Its runs are listed on the routine's page. Its prompt is kept in
-   `routine-prompt.txt`; only the owner can edit the routine, so paste changes there by hand.
+If the Mac sleeps all day, the page shows the previous day's data until the next run.
+Change the page itself by committing `ledger/index.html` and pushing.
 
-If the Mac sleeps through both times, the page shows the previous day's data until
-the next morning. Change the page itself by committing `ledger/index.html` and
-pushing. When the repo's page differs from the live one, the Artifact tool refuses
-the routine's first publish. The routine then saves the live page and runs
-`python3 check_live.py <saved page>`, which strips the wrapper publishing adds and
-compares the rest with every commit of `ledger/index.html`:
-
-- **Exit 0**: the live page is an older commit, so nothing outside git would be
-  lost. The routine publishes again, and once more if that is refused as identical
-  content (the tool lets the third attempt through).
-- **Exit 1**: the live page matches no commit, so it was edited outside git. The
-  routine stops and quotes the script's output. Bring those edits into the repo, or
-  publish over them by hand.
-- **Exit 2**: it can't tell (for example a shallow clone). The routine stops and
-  quotes the output.
-
-The routine run's status says "succeeded" even when it stopped, so read its last line,
-or check that the page's version moved.
+Until 2026-11-04 a cloud routine republished the claude.ai artifact at 08:13 UTC
+(https://claude.ai/code/routines/trig_01VUxd2ZaoXVZNKrvfjTSHRX, now disabled; delete
+it there). Its prompt and `check_live.py` are in git history before that date.
 
 - Log: `~/Library/Logs/ai-ledger-refresh.log`
 - Run now: `launchctl kickstart gui/$(id -u)/local.sable.ai-ledger` (or `./refresh.sh`)
@@ -86,7 +66,7 @@ Codex began compressing old sessions to `.jsonl.zst`. Find the logs, or rerun wi
 
 ## Version control
 
-This folder is a git repository, pushed to the private GitHub repo
+This folder is a git repository, pushed to the GitHub repo
 `Pritesh1980/sable-ai-ledger` (since 2026-10-26). The daily job commits and pushes
 data. Commit and push page or script changes yourself. `out/` is committed on purpose: Claude Code deletes its transcripts
 after `cleanupPeriodDays`, so each commit of `out/*.json` keeps a snapshot of numbers

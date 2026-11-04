@@ -6,7 +6,6 @@ set -euo pipefail
 export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 cd "$(dirname "$0")"
 
-URL=https://claude.ai/artifact/9rkccTsV3vvha7mtggGaTh
 PY="$HOME/.pyenv/versions/3.8.2/bin/python3"
 [ -x "$PY" ] || PY=python3
 LOG="$HOME/Library/Logs/ai-ledger-refresh.log"
@@ -29,8 +28,8 @@ else
   echo "Committed $(git rev-parse --short HEAD)"
 fi
 
-# Push anything unpushed. A cloud routine republishes the page ($URL) from GitHub
-# at 08:13, because `claude -p` here has no Artifact tool (tested 2026-10-26).
+# Push anything unpushed. The push redeploys the GitHub Pages site
+# (.github/workflows/pages.yml).
 if [ -n "$(git log origin/main..HEAD --oneline)" ]; then
   git push -q origin main
   echo "Pushed to origin/main"
