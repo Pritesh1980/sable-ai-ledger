@@ -15,7 +15,7 @@
   --bone: #efe9dc;
   --ash: #a8a294;
   --dim: #8d877b;
-  --spark: #ff6b4a;
+  --spark: #c8ff3a;
   /* Model palette in fixed order, validated against --ink (lightness band, chroma, CVD and contrast all pass). */
   --m-opus55: #d0513b;
   --m-codex: #0e9a94;
@@ -436,7 +436,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       </div>
       <div>
         <p class="chart-title">Context per reply</p>
-        <p class="chart-note">Average tokens each main-thread reply read, so lower is cheaper. Red dots mark days with cache rebuilds, sized by how many. Gaps are days without Claude Code work.</p>
+        <p class="chart-note">Average tokens each main-thread reply read, so lower is cheaper. Lime dots mark days with cache rebuilds, sized by how many. Gaps are days without Claude Code work.</p>
         <div class="chart" id="chart-ctx" style="height: 260px"></div>
       </div>
       <div class="pair-wide">
@@ -1707,7 +1707,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
         },
         {
           name: 'Cache rebuilds', type: 'scatter', data: sparks, symbolSize: (v) => 8 + v[2] * 2.5,
-          itemStyle: { color: '#ff6b4a', borderColor: '#131110', borderWidth: 2, shadowBlur: 10, shadowColor: '#ff6b4a' }, z: 3,
+          itemStyle: { color: '#c8ff3a', borderColor: '#131110', borderWidth: 2, shadowBlur: 10, shadowColor: '#c8ff3a' }, z: 3,
         },
       ],
     }));
