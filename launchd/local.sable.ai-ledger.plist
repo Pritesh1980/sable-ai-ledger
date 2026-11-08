@@ -10,13 +10,13 @@
     <string>/bin/bash</string>
     <string>/Users/pritesh/code/ai-usage/refresh.sh</string>
   </array>
-  <!-- 07:43 every day. If the Mac is asleep then, launchd runs it on wake. -->
+  <!-- 05:00 every day. If the Mac is asleep then, launchd runs it on wake. -->
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
-    <integer>7</integer>
+    <integer>5</integer>
     <key>Minute</key>
-    <integer>43</integer>
+    <integer>0</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>/Users/pritesh/Library/Logs/ai-ledger-refresh.log</string>

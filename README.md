@@ -37,7 +37,7 @@ to `data/`, which is where the page fetches them from.
 
 ## Daily refresh
 
-At 07:43 launchd runs `refresh.sh` on this Mac, or runs it on wake if the Mac was
+At 05:00 launchd runs `refresh.sh` on this Mac, or runs it on wake if the Mac was
 asleep. It pulls from GitHub first (so a page or script change pushed from elsewhere
 can't block its push), then runs the tests and the ingest, commits `out/` if anything
 changed, and pushes to https://github.com/Pritesh1980/sable-ai-ledger. That push runs
@@ -53,6 +53,7 @@ it there). Its prompt and `check_live.py` are in git history before that date.
 - Log: `~/Library/Logs/ai-ledger-refresh.log`
 - Run now: `launchctl kickstart gui/$(id -u)/local.sable.ai-ledger` (or `./refresh.sh`)
 - Install (done 2026-10-26): `cp launchd/local.sable.ai-ledger.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.sable.ai-ledger.plist`
+- Reload after changing the plist: `launchctl bootout gui/$(id -u)/local.sable.ai-ledger; cp launchd/local.sable.ai-ledger.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.sable.ai-ledger.plist`
 - Stop: `launchctl bootout gui/$(id -u)/local.sable.ai-ledger && rm ~/Library/LaunchAgents/local.sable.ai-ledger.plist`
 
 The ingest refuses to write `out/` when any past day holds fewer tokens than the last
