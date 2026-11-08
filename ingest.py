@@ -1350,7 +1350,8 @@ def build():
     # ---- summary for the terminal
     total = sum(r['cost'] or 0 for r in replies)
     attributed = sum(r['cost'] or 0 for r in replies if r['task'])
-    no_pr = Counter(r['branch'] for r in replies if r['task'] is None and r['branch'] not in MAIN_BRANCHES)
+    no_pr = Counter(r['branch'] for r in replies
+                    if r['project'] == SABLE and r['task'] is None and r['branch'] not in MAIN_BRANCHES)
     print('Claude: %d files, %d replies, %s to %s, $%.2f API-equivalent, %.0f%% attributed to tasks' % (
         claude['files'], len(replies), local_day(replies[0]['ts']), local_day(replies[-1]['ts']),
         total, 100 * attributed / total if total else 0))
