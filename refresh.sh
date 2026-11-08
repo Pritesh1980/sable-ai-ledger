@@ -20,11 +20,17 @@ echo "== $(date '+%F %T')"
 git pull -q --rebase --autostash origin main
 "$PY" -m unittest -q 2>&1 | tail -1
 "$PY" ingest.py          # stops without writing if any past day lost tokens
-if git diff --quiet -- out; then
+# out/meta.json stamps the run time the page shows as "Last updated", so it
+# changes every run: every run commits and redeploys, even with no new usage.
+git add out
+if git diff --cached --quiet -- out ':(exclude)out/meta.json'; then
   echo "No new usage since the last refresh."
+  msg="data: refresh $(date +%F), no new usage"
 else
-  git add out
-  git commit -q -m "data: refresh $(date +%F)"
+  msg="data: refresh $(date +%F)"
+fi
+if ! git diff --cached --quiet -- out; then
+  git commit -q -m "$msg"
   echo "Committed $(git rev-parse --short HEAD)"
 fi
 

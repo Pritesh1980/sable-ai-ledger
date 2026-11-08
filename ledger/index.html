@@ -91,6 +91,7 @@ a:hover { text-decoration-color: var(--bone); }
 .overview { padding-top: clamp(24px, 3.5vw, 44px); }
 .ov-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; margin-bottom: 18px; }
 .scope { margin: 0; color: var(--ash); font-size: var(--step--1); max-width: 110ch; }
+.scope .stamp { color: var(--bone); font-weight: 500; }
 
 .wave { margin: clamp(28px, 4vw, 44px) 0 0; position: relative; }
 .wave canvas { display: block; width: 100%; height: clamp(240px, 34vw, 380px); cursor: crosshair; touch-action: pan-y; }
@@ -297,7 +298,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   <section class="overview" id="overview" aria-label="Overview">
     <div class="wrap">
       <div class="ov-head">
-        <p class="scope" id="scope">Loading Claude Code, Codex and Antigravity usage for Sable.</p>
+        <p class="scope" id="scope">Loading Claude Code, Codex and Antigravity usage.</p>
         <button type="button" class="ins-open" data-ins="overview" aria-haspopup="dialog" aria-label="Insight for the overview">Insight</button>
       </div>
       <div class="figures" id="figures">
@@ -372,6 +373,11 @@ details.numbers[open] summary { margin-bottom: 10px; }
         <div class="chart" id="chart-sankey" style="height: 440px"></div>
       </div>
       <details class="numbers"><summary>The numbers behind it</summary><div class="tbl-wrap"><table class="tbl" id="tbl-sankey"></table></div></details>
+      <div>
+        <p class="chart-title">By project</p>
+        <p class="chart-note" id="projects-note">Every call, by the folder it ran in.</p>
+        <div class="tbl-wrap"><table class="tbl" id="tbl-projects"></table></div>
+      </div>
     </div>
   </section>
 
@@ -491,17 +497,18 @@ details.numbers[open] summary { margin-bottom: 10px; }
 <footer class="wrap foot" id="method">
   <div>
     <h2>How it's measured</h2>
-    <p>Built from the Claude Code, Codex, Antigravity and Gemini CLI logs on Pritesh's Mac, git history and GitHub. It refreshes every morning.</p>
+    <p>Built from every Claude Code, Codex, Antigravity and Gemini CLI log on Pritesh's Mac, across every project, plus Sable's git history and GitHub. It refreshes every morning.</p>
   </div>
   <div>
     <dl class="defs">
       <div><dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads, and output including thinking.</dd></div>
-      <div><dt>Task</dt><dd>A GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session.</dd></div>
+      <div><dt>Project</dt><dd>The folder a run happened in: Sable for its checkout, its worktrees and Claude's scratch folders for it, else the folder under ~/code. An Antigravity run with no folder on record is Sable's when its request names Sable, else Unknown.</dd></div>
+      <div><dt>Task</dt><dd>A Sable GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session.</dd></div>
       <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code and Codex agent work.</dd></div>
       <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again. Most come after a gap of an hour or more, when the prompt cache has expired; fewer follow a compaction.</dd></div>
       <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
       <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
-      <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI. A run counts when it ran in Sable's folder or, with no folder on record, when its request names Sable. Tokens only, with no list prices.</dd></div>
+      <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI. Tokens only, with no list prices.</dd></div>
       <div><dt>Call</dt><dd>One model response: a reply in Claude Code, a model turn in Codex, a generation in Antigravity.</dd></div>
     </dl>
     <div class="prices">
@@ -649,8 +656,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
     return r.json();
   });
 
-  Promise.all([Promise.all(['daily', 'tasks', 'prices', 'waveform'].map(load)), document.fonts.ready])
-    .then(([[daily, tasks, prices, wave]]) => start({ daily, tasks, prices, wave }))
+  Promise.all([Promise.all(['daily', 'tasks', 'prices', 'waveform'].map(load)), load('meta').catch(() => null), document.fonts.ready])
+    .then(([[daily, tasks, prices, wave], meta]) => start({ daily, tasks, prices, wave, meta }))
     .catch((err) => {
       $('#scope').textContent = 'The ledger did not load. Its data files are missing or unreadable (' + err.message + '). Ask Claude to refresh the Sable AI ledger to publish them again.';
     });
@@ -730,8 +737,13 @@ details.numbers[open] summary { margin-bottom: 10px; }
       el('b', null, F.usd0(S.writing)), ' on what the models wrote. Every reply re-reads everything its session carries, so the biggest lever is scope: one task per session, and a fresh start rather than a cold resume of a big session.'
     );
     const lastCall = D.wave.rows[D.wave.rows.length - 1][0];
-    $('#scope').textContent = 'Claude Code, Codex and Antigravity usage on Sable, with Claude priced at API list rates. Data through '
-      + new Date(lastCall * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.';
+    const when = (ms) => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const refreshed = D.meta && Date.parse(D.meta.refreshed);
+    $('#scope').replaceChildren(
+      'All Claude Code, Codex and Antigravity usage on this Mac, across every project, with Claude priced at API list rates. ',
+      ...(refreshed ? [el('b', 'stamp', 'Last updated ' + when(refreshed) + '.'), ' '] : []),
+      'Data through ' + when(lastCall * 1000) + '.'
+    );
 
     // figures
     const change = S.w1.cost ? S.w0.cost / S.w1.cost - 1 : null;
@@ -769,6 +781,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     taskTable(S);
     codexRoles(D);
     priceTable(D);
+    projectTable(D);
 
     let pending = 0;
     window.addEventListener('resize', () => {
@@ -1867,6 +1880,35 @@ details.numbers[open] summary { margin-bottom: 10px; }
       row.append(el('span', null, names[role] || role), track, val);
       return row;
     }));
+  }
+
+  function projectTable(D) {
+    const tokens = (r) => r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
+    const by = new Map();
+    for (const r of D.daily) {
+      const p = by.get(r.project || 'Unknown') || { calls: 0, cost: 0, claude: 0, codex: 0, gemini: 0 };
+      p.calls += r.replies;
+      if (r.tool === 'Claude Code') { p.claude += tokens(r); p.cost += r.cost_usd || 0; }
+      else if (r.tool === 'Codex') p.codex += tokens(r);
+      else p.gemini += tokens(r);
+      by.set(r.project || 'Unknown', p);
+    }
+    const rows = [...by].sort((a, b) => (b[1].claude + b[1].codex + b[1].gemini) - (a[1].claude + a[1].codex + a[1].gemini));
+    const first = D.daily.reduce((m, r) => (r.day < m ? r.day : m), D.daily[0].day);
+    $('#projects-note').textContent = 'Every call since ' + F.day(first) + ', by the folder it ran in. Tasks, PRs and CI come from Sable\u2019s GitHub, so The work and The cycles cover Sable alone.';
+    const thead = el('thead');
+    const hr = el('tr');
+    ['Project', 'Calls', 'Claude cost', 'Claude tokens', 'Codex tokens', 'Antigravity tokens'].forEach((h, i) => hr.appendChild(el('th', i ? 'num' : null, h)));
+    thead.appendChild(hr);
+    const tbody = el('tbody');
+    rows.forEach(([name, p]) => {
+      const tr = el('tr');
+      tr.append(el('td', null, name), el('td', 'num', F.int(p.calls)), el('td', 'num', p.claude ? F.usd(p.cost) : '\u2014'),
+        el('td', 'num', p.claude ? F.big(p.claude) : '\u2014'), el('td', 'num', p.codex ? F.big(p.codex) : '\u2014'),
+        el('td', 'num', p.gemini ? F.big(p.gemini) : '\u2014'));
+      tbody.appendChild(tr);
+    });
+    $('#tbl-projects').replaceChildren(thead, tbody);
   }
 
   function priceTable(D) {

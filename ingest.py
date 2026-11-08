@@ -22,6 +22,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+from functools import lru_cache
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
@@ -29,8 +30,8 @@ from urllib.parse import unquote
 HOME = os.path.expanduser('~')
 REPO = os.environ.get('SABLE_REPO', os.path.join(HOME, 'code', 'tattoo-app'))
 REPO_SLUG = 'Pritesh1980/sable'
-CLAUDE_DIR = os.environ.get(
-    'CLAUDE_TRANSCRIPTS', os.path.join(HOME, '.claude', 'projects', '-Users-pritesh-code-tattoo-app'))
+# Every project's transcripts. Each reply is booked to the project its session ran in.
+CLAUDE_DIR = os.environ.get('CLAUDE_PROJECTS', os.path.join(HOME, '.claude', 'projects'))
 CODEX_DIRS = [os.path.join(HOME, '.codex', 'sessions'), os.path.join(HOME, '.codex', 'archived_sessions')]
 # Antigravity: the agy CLI first, then the IDE. Each keeps conversations/<id>.db.
 ANTIGRAVITY_DIRS = [os.path.join(HOME, '.gemini', 'antigravity-cli'), os.path.join(HOME, '.gemini', 'antigravity')]
@@ -684,6 +685,50 @@ def is_sable_folder(path):
     return p == REPO or p.startswith(REPO + '/') or (REPO.replace('/', '-') + '/') in p
 
 
+SABLE = 'Sable'
+# Folders under these, in the home folder, each hold one project per subfolder.
+PROJECT_PARENTS = ('code', 'Documents', 'Desktop', 'Projects', 'src')
+
+
+def encoded(path):
+    """A folder as Claude Code writes it into a path: every character but letters and digits as '-'."""
+    return re.sub(r'[^A-Za-z0-9]', '-', path)
+
+
+@lru_cache(maxsize=None)
+def code_folders():
+    try:
+        return sorted(os.listdir(os.path.join(HOME, 'code')))
+    except OSError:
+        return []
+
+
+def project_of(path):
+    """The project a folder belongs to. Sable for its checkout, worktrees, sibling clones
+    (tattoo-app-*) and Claude scratchpads; else the folder under ~/code (or ~/Documents and
+    the like). 'Unknown' when no folder is on record, 'Other' for one outside the home folder."""
+    p = file_path(path)
+    if not p:
+        return 'Unknown'
+    p = p.rstrip('/') or '/'
+    if is_sable_folder(p) or any(part.startswith(os.path.basename(REPO)) for part in p.split('/')):
+        return SABLE
+    # A Claude Code project folder or scratchpad, named after the folder its session ran in.
+    m = re.search(re.escape(encoded(os.path.join(HOME, 'code')) + '-') + r'([^/]+)', p)
+    if m:
+        name = m.group(1)
+        hits = [f for f in code_folders() if name == encoded(f) or name.startswith(encoded(f) + '-')]
+        return max(hits, key=len) if hits else name
+    if p == HOME:
+        return 'Home'
+    if not p.startswith(HOME + '/'):
+        return 'Other'
+    parts = p[len(HOME) + 1:].split('/')
+    if parts[0] == '.codex' and len(parts) > 3 and parts[1] == 'worktrees':
+        return parts[3]
+    return parts[1] if parts[0] in PROJECT_PARENTS and len(parts) > 1 else parts[0]
+
+
 SABLE_WORDS = re.compile(r'\bsable\b|\btattoo', re.I)
 
 
@@ -773,6 +818,7 @@ def load_claude():
     files = glob.glob(os.path.join(CLAUDE_DIR, '**', '*.jsonl'), recursive=True)
     replies, tool_uses, results = {}, {}, {}
     prompts, compactions, pr_links, titles, seen = [], [], [], {}, set()
+    projects = {}
     for path in files:
         for d in iter_jsonl(path):
             kind = d.get('type')
@@ -785,9 +831,13 @@ def load_claude():
                 u = usage_of(msg.get('usage'))
                 r = replies.get(mid)
                 if r is None:
+                    where = d.get('cwd') or path
+                    if where not in projects:
+                        projects[where] = project_of(where)
                     r = replies[mid] = dict(
                         id=mid, session=d.get('sessionId'), ts=ts, model=norm_model(model),
-                        branch=d.get('gitBranch'), sidechain=bool(d.get('isSidechain')), usage=u, tools=0)
+                        branch=d.get('gitBranch'), sidechain=bool(d.get('isSidechain')), usage=u, tools=0,
+                        project=projects[where])
                 else:
                     r['usage'] = merge_usage(r['usage'], u)
                 for b in msg.get('content') or []:
@@ -842,13 +892,13 @@ def load_codex():
         if not meta:
             continue
         git = meta.get('git') or {}
-        if not ((meta.get('cwd') or '').startswith(REPO) or REPO_SLUG in (git.get('repository_url') or '')):
-            continue
+        project = SABLE if REPO_SLUG in (git.get('repository_url') or '') else project_of(meta.get('cwd'))
         sessions += 1
         sid, role, branch = meta.get('id') or meta.get('session_id'), codex_role(meta), git.get('branch')
         for ts, m, u in calls:
             if ts:
-                rows.append(dict(session=sid, ts=ts, model=norm_model(m), role=role, branch=branch, usage=u))
+                rows.append(dict(session=sid, ts=ts, model=norm_model(m), role=role, branch=branch, usage=u,
+                                 project=project))
     return rows, sessions
 
 
@@ -883,8 +933,8 @@ def read_antigravity_db(path):
 
 
 def load_antigravity(saved_folders):
-    """Model calls from Antigravity conversations that were for Sable, plus every folder the agy
-    logs named (to keep), and counts of how each conversation was placed."""
+    """Model calls from every Antigravity conversation, each booked to a project, plus every
+    folder the agy logs named (to keep), and counts of how each conversation was placed."""
     cli = ANTIGRAVITY_DIRS[0]
     logs = []
     for p in sorted(glob.glob(os.path.join(cli, 'log', '*.log'))):
@@ -914,29 +964,30 @@ def load_antigravity(saved_folders):
     rows = []
     for c in convs:
         folder = c['folder'] or folders.get(c['id'])
-        if not antigravity_is_sable(folder, c['request']):
-            stats['left out'] += 1
-            continue
-        stats['by folder' if c['folder'] else 'by log' if folder else 'by request'] += 1
+        # With no folder on record, a request that names Sable still places it.
+        project = project_of(folder) if folder else SABLE if antigravity_is_sable(None, c['request']) else 'Unknown'
+        if project == SABLE:
+            stats['by folder' if c['folder'] else 'by log' if folder else 'by request'] += 1
+        else:
+            stats['other'] += 1
         role = 'agent' if c['ide'] or c['id'] in interactive else 'review'
-        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'])
+        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'], project=project)
                  for g in c['gens'] if g['ts']]
     return rows, folders, stats
 
 
 def load_gemini_cli():
-    """Replies from the Gemini CLI (before agy), for chats whose project root is this repo."""
+    """Replies from the Gemini CLI (before agy), each booked to its chat's project root."""
     rows = []
     for project in sorted(glob.glob(os.path.join(GEMINI_CLI_DIR, '*'))):
         try:
             with open(os.path.join(project, '.project_root')) as f:
                 root = f.read().strip()
         except OSError:
-            continue
-        if not is_sable_folder(root):
-            continue
+            root = None
         for path in sorted(glob.glob(os.path.join(project, 'chats', '*.jsonl'))):
-            rows += [dict(r, tool='Gemini CLI', role='agent') for r in gemini_cli_replies(iter_jsonl(path))]
+            rows += [dict(r, tool='Gemini CLI', role='agent', project=project_of(root))
+                     for r in gemini_cli_replies(iter_jsonl(path))]
     return rows
 
 
@@ -1006,6 +1057,12 @@ def ci_summary(runs):
     return len(cycles), sum(1 for s in cycles if not s['ok']), cycles[0]['ok']
 
 
+def refresh_stamp(now):
+    """out/meta.json: when this ingest ran. The page shows it as "Last updated", so a
+    refresh that found no new usage still shows it ran."""
+    return dict(refreshed=now.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+
+
 def build():
     claude = load_claude()
     codex_rows, codex_sessions = load_codex()
@@ -1030,9 +1087,9 @@ def build():
     commit_cmds, tests, reviews = [], [], []
     for tid, tu in tool_uses.items():
         cmd = tu.get('command')
-        if not cmd:
-            continue
         r = reply_by_id[tu['reply']]
+        if not cmd or r['project'] != SABLE:
+            continue
         res = results.get(tid) or {}
         ts, text = res.get('ts') or r['ts'], res.get('text', '')
         if TEST_RE.search(cmd):
@@ -1071,11 +1128,12 @@ def build():
             return 'Branch ' + branch
         return None
 
+    # Tasks come from Sable's git and GitHub, so only Sable work has them.
     for r in replies:
-        r['task'] = task_of(r['session'], r['branch'], r['ts'])
+        r['task'] = task_of(r['session'], r['branch'], r['ts']) if r['project'] == SABLE else None
         r['cost'] = cost(r['model'], r['usage'])
     for c in codex_rows:
-        c['task'] = task_of(None, c['branch'], c['ts'])
+        c['task'] = task_of(None, c['branch'], c['ts']) if c['project'] == SABLE else None
 
     # Cache rebuilds: a main-thread reply, not a session's first, that rewrote most of its context.
     by_session = defaultdict(list)
@@ -1098,7 +1156,8 @@ def build():
     # ---- daily
     daily = defaultdict(lambda: dict(replies=0, cost_usd=0.0, rebuilds=0, rebuild_tokens=0, **zero()))
     for r in replies:
-        key = (local_day(r['ts']), 'Claude Code', r['model'], 'subagent' if r['sidechain'] else 'main', bool(r['task']))
+        key = (local_day(r['ts']), 'Claude Code', r['model'], 'subagent' if r['sidechain'] else 'main', bool(r['task']),
+               r['project'])
         row = daily[key]
         row['replies'] += 1
         add(row, r['usage'])
@@ -1107,18 +1166,19 @@ def build():
             row['rebuilds'] += 1
             row['rebuild_tokens'] += r['usage']['cw5'] + r['usage']['cw1h']
     for c in codex_rows:
-        row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']))]
+        row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']), c['project'])]
         row['replies'] += 1
         add(row, c['usage'])
     for g in gemini_rows:  # no branch on record, so never attributed to a task
-        row = daily[(local_day(g['ts']), g['tool'], g['model'], g['role'], False)]
+        row = daily[(local_day(g['ts']), g['tool'], g['model'], g['role'], False, g['project'])]
         row['replies'] += 1
         add(row, g['usage'])
     daily_rows = []
-    for (day, tool, model, role, attributed), row in sorted(daily.items()):
+    for (day, tool, model, role, attributed, project), row in sorted(daily.items()):
         row = dict(row)
         row['cost_usd'] = round(row['cost_usd'], 4) if tool == 'Claude Code' else None
-        daily_rows.append(dict(day=day, tool=tool, model=model, role=role, attributed=attributed, **row))
+        daily_rows.append(dict(day=day, tool=tool, model=model, role=role, attributed=attributed, project=project,
+                               **row))
 
     # ---- tasks
     acc = defaultdict(lambda: dict(
@@ -1258,6 +1318,10 @@ def build():
         json.dump(waveform, f, separators=(',', ':'))
     print('  out/waveform.json  %d calls since %s  %d KB' % (
         len(waveform['rows']), local_day(since), os.path.getsize(os.path.join(OUT, 'waveform.json')) // 1024))
+    stamp = refresh_stamp(datetime.now(timezone.utc))
+    with open(os.path.join(OUT, 'meta.json'), 'w') as f:
+        json.dump(stamp, f)
+    print('  out/meta.json  refreshed %s' % stamp['refreshed'])
 
     # ---- summary for the terminal
     total = sum(r['cost'] or 0 for r in replies)
@@ -1270,11 +1334,15 @@ def build():
         len(claude['prompts']), len(claude['compactions']), len(commit_task), len(commit_cmds)))
     print('Codex: %d sessions, %d calls' % (codex_sessions, len(codex_rows)))
     placed = sum(agy_stats[k] for k in ('by folder', 'by log', 'by request'))
-    print('Antigravity: %d Sable conversations (%d by folder, %d by agy log, %d by request), %d calls; '
-          '%d left out as not Sable or unknown%s' % (
-              placed, agy_stats['by folder'], agy_stats['by log'], agy_stats['by request'], len(agy_rows),
-              agy_stats['left out'], ', %d unreadable' % agy_stats['unreadable'] if agy_stats['unreadable'] else ''))
+    print('Antigravity: %d Sable conversations (%d by folder, %d by agy log, %d by request), %d in other '
+          'projects, %d calls%s' % (
+              placed, agy_stats['by folder'], agy_stats['by log'], agy_stats['by request'], agy_stats['other'],
+              len(agy_rows), ', %d unreadable' % agy_stats['unreadable'] if agy_stats['unreadable'] else ''))
     print('Gemini CLI: %d replies' % (len(gemini_rows) - len(agy_rows)))
+    calls = Counter()
+    for row in daily_rows:
+        calls[row['project']] += row['replies']
+    print('Projects (calls): ' + ', '.join('%s %d' % kv for kv in calls.most_common()))
     print('Tasks: %d   Daily rows: %d' % (len(task_rows), len(daily_rows)))
     if no_pr:
         print('Unattributed branches:', ', '.join('%s (%d)' % kv for kv in no_pr.most_common(8)))

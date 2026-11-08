@@ -11,36 +11,46 @@ Marcellus and Archivo from Google Fonts, Sable's v2 palette. Loads `data/*.json`
 published beside the page. The earlier Dashboard-type page was retired on
 2026-10-21; its source is kept in `retired/dashboard/`. For raw rows, read `out/*.json`.
 
-`ingest.py` reads the AI logs on this Mac and writes one JSON file per dataset to
-`out/`. Standard library only, Python 3.8+.
+`ingest.py` reads every AI log on this Mac, for every project, and writes one JSON file
+per dataset to `out/`. Standard library only, Python 3.8+. Each call is booked to the
+project it ran in (`project_of()`): Sable for its checkout, its worktrees, sibling
+`tattoo-app-*` clones and Claude Code scratchpads of it; otherwise the folder under
+`~/code` (or `~/Documents` and the like). Daily rows carry that `project`. Tasks, PRs
+and CI come from Sable's git and GitHub only, so only Sable work is attributed to tasks.
 
 | Source | Path | What it gives |
 |---|---|---|
-| Claude Code transcripts | `~/.claude/projects/-Users-pritesh-code-tattoo-app/` | Tokens, cache, thinking, model, branch per reply |
-| Codex sessions | `~/.codex/sessions/` and `archived_sessions/`, plain or `.jsonl.zst` (filtered to this repo; needs the `zstd` tool) | Tokens per call, model, role, branch |
+| Claude Code transcripts | `~/.claude/projects/` (every project) | Tokens, cache, thinking, model, branch, folder per reply |
+| Codex sessions | `~/.codex/sessions/` and `archived_sessions/`, plain or `.jsonl.zst` (needs the `zstd` tool) | Tokens per call, model, role, branch, folder |
 | Antigravity (agy CLI and IDE) | `~/.gemini/antigravity-cli/` and `~/.gemini/antigravity/`, one SQLite file per conversation in `conversations/` | Tokens per generation, model (mostly Gemini) |
 | Gemini CLI (before agy) | `~/.gemini/tmp/<project>/chats/` | Tokens per reply, model |
-| git + GitHub (`gh`) | the repo | PRs, issues, CI runs, diff sizes, rework |
+| git + GitHub (`gh`) | the Sable repo | PRs, issues, CI runs, diff sizes, rework |
 
-Do ledger work from this folder: `cd ~/code/ai-usage && claude`. A session started in
-the Sable checkout logs its transcript under Sable's project folder, so its cost is
-booked to Sable. The ingest leaves a commit made into another repo under `~/code`
-unattributed rather than booking it to a Sable task, but every other reply in that
-session still counts as Sable usage.
+Do ledger work from this folder: `cd ~/code/ai-usage && claude`, so it is booked to the
+ai-usage project. A Claude Code reply is booked by the folder its session ran in, so a
+session started in the Sable checkout counts as Sable even when it works on another
+repo; the ingest only leaves a commit made into another repo under `~/code` off Sable's
+tasks.
+
+Usage that never reaches this Mac is not counted: cloud sessions (claude.ai/code,
+Codex cloud) and chats in the Claude or ChatGPT apps.
 
 ## Refresh
 
 Run `./refresh.sh`. It ingests, commits `out/` and pushes; the push redeploys the page.
 The Pages workflow adds the document skeleton (`<!doctype html>`, charset, viewport)
 in front of `ledger/index.html` and copies `out/{daily,tasks,prices,waveform}.json`
-to `data/`, which is where the page fetches them from.
+and `out/meta.json` to `data/`, which is where the page fetches them from. `meta.json`
+holds the time of the last refresh, which the page shows as "Last updated" beside
+"Data through" (the latest call in the data).
 
 ## Daily refresh
 
 At 05:00 launchd runs `refresh.sh` on this Mac, or runs it on wake if the Mac was
 asleep. It pulls from GitHub first (so a page or script change pushed from elsewhere
-can't block its push), then runs the tests and the ingest, commits `out/` if anything
-changed, and pushes to https://github.com/Pritesh1980/sable-ai-ledger. That push runs
+can't block its push), then runs the tests and the ingest, commits `out/` (every run,
+since `meta.json` stamps each one; the commit says "no new usage" when only that
+changed), and pushes to https://github.com/Pritesh1980/sable-ai-ledger. That push runs
 the Pages workflow. It shows a macOS notification if anything fails.
 
 If the Mac sleeps all day, the page shows the previous day's data until the next run.
@@ -88,11 +98,10 @@ the logs may no longer hold.
   decodes the few fields it needs: the field numbers are noted in
   `antigravity_generation()`, read off real conversations in October 2026. If an agy
   update moves them, the Antigravity rows vanish and the shrink guard stops the refresh.
-- Many agy runs record no folder. A conversation counts for Sable when Antigravity
-  recorded Sable's folder (a worktree or a Claude Code scratchpad of this repo counts),
-  else when the agy CLI log or prompt history names its folder, else when its request
-  names Sable (or tattoo) and no other project folder. Everything else is left out:
-  on 2026-10-26 that was 60 of 123 conversations, some of them reviews for other projects.
+- Many agy runs record no folder. A conversation's project comes from the folder
+  Antigravity recorded, else the folder the agy CLI log or prompt history names, else
+  Sable when its request names Sable (or tattoo) and no other project folder, else
+  Unknown. Until 2026-11-08 only Sable conversations were kept; the rest were left out.
   The CLI logs get pruned, so the folders they name are kept in
   `out/antigravity_folders.json`.
 - Prices are in `PRICES` at the top of `ingest.py`; update them and `PRICES_AS_OF`

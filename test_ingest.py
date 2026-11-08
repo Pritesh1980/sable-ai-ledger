@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import time
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import ingest as ing
@@ -499,6 +499,39 @@ class Shrink(unittest.TestCase):
         new = [self.row('2026-07-01', 'Codex', 99), self.row('2026-07-02', 'Claude Code', 9)]
         self.assertEqual(ing.shrunk_days(old, new),
                          [('2026-07-01', 'Codex', 100, 99), ('2026-07-02', 'Codex', 70, 0)])
+
+
+class RefreshStamp(unittest.TestCase):
+    def test_stamps_the_run_in_utc_to_the_second(self):
+        bst = timezone(timedelta(hours=1))
+        self.assertEqual(ing.refresh_stamp(datetime(2026, 11, 8, 7, 43, 5, 999, tzinfo=bst)),
+                         {'refreshed': '2026-11-08T06:43:05Z'})
+
+
+class Projects(unittest.TestCase):
+    def test_names_the_project_a_folder_belongs_to(self):
+        home, repo = ing.HOME, ing.REPO
+        pad = lambda folder: '/private/tmp/claude-502/' + folder.replace('/', '-') + '/0a1b/scratchpad'
+        cases = {
+            repo: 'Sable',
+            repo + '/.worktrees/feat-e2e': 'Sable',
+            home + '/.codex/worktrees/calendar-export/tattoo-app': 'Sable',
+            home + '/code/tattoo-app-radar': 'Sable',
+            pad(repo): 'Sable',
+            home + '/code/Mistry Chronicles': 'Mistry Chronicles',
+            home + '/Documents/Mistry Chronicles/notes': 'Mistry Chronicles',
+            home + '/code/ai-usage/.worktrees/all-usage': 'ai-usage',
+            pad(home + '/code/ai-usage'): 'ai-usage',
+            pad(home + '/code/Mistry Chronicles'): 'Mistry Chronicles',
+            pad(home + '/code/ai-usage/.worktrees/all-usage'): 'ai-usage',
+            home + '/.claude/projects/' + (home + '/code/ai-usage').replace('/', '-') + '/s.jsonl': 'ai-usage',
+            home: 'Home',
+            '/opt/elsewhere': 'Other',
+            None: 'Unknown',
+            '': 'Unknown',
+        }
+        with mock.patch.object(ing, 'code_folders', lambda: ['ai', 'ai-usage', 'Mistry Chronicles', 'tattoo-app']):
+            self.assertEqual({k: ing.project_of(k) for k in cases}, cases)
 
 
 if __name__ == '__main__':
