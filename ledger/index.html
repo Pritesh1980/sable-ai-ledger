@@ -497,11 +497,12 @@ details.numbers[open] summary { margin-bottom: 10px; }
 <footer class="wrap foot" id="method">
   <div>
     <h2>How it's measured</h2>
-    <p>Built from every Claude Code, Codex, Antigravity and Gemini CLI log on Pritesh's Mac, across every project, plus Sable's git history and GitHub. It refreshes every morning.</p>
+    <p>Built from every Claude Code, Codex, Antigravity and Gemini CLI log on Pritesh's Mac, across every project, plus Claude cloud sessions imported by hand, Sable's git history and GitHub. It refreshes every morning.</p>
   </div>
   <div>
     <dl class="defs">
       <div><dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads, and output including thinking.</dd></div>
+      <div><dt>Cloud sessions</dt><dd>Claude Code runs in the cloud (claude.ai/code) leave no logs on the Mac. Their token counts are imported by hand from the sessions record, by day, with no task attached. So far: two sessions, 31 Oct to 8 Nov.</dd></div>
       <div><dt>Project</dt><dd>The folder a run happened in: Sable for its checkout, its worktrees and Claude's scratch folders for it, else the folder under ~/code. An Antigravity run with no folder on record is Sable's when its request names Sable, else Unknown.</dd></div>
       <div><dt>Task</dt><dd>A Sable GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session.</dd></div>
       <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code and Codex agent work.</dd></div>

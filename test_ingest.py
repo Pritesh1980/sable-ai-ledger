@@ -534,5 +534,14 @@ class Projects(unittest.TestCase):
             self.assertEqual({k: ing.project_of(k) for k in cases}, cases)
 
 
+class CloudSessions(unittest.TestCase):
+    def test_each_session_day_becomes_a_usage_row(self):
+        doc = {'sessions': [{'title': 'Web work', 'project': 'Sable', 'model': 'claude-opus-5-5', 'days': [
+            {'day': '2026-11-05', 'replies': 3, 'input': 10, 'cw5': 20, 'cw1h': 30, 'cache_read': 40, 'output': 50}]}]}
+        self.assertEqual(ing.cloud_rows(doc), [dict(
+            day='2026-11-05', model='claude-opus-5-5', project='Sable', replies=3,
+            usage=dict(input=10, cw5=20, cw1h=30, cache_read=40, output=50, thinking=0))])
+
+
 if __name__ == '__main__':
     unittest.main()

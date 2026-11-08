@@ -1,0 +1,102 @@
+{
+ "about": "Claude Code sessions that ran in the cloud (claude.ai/code), so their logs are not on this Mac. Imported by hand on 2026-11-08 from the sessions API: per-reply cache reads and writes by day, with what the replies did not cover put on the session's first day; input and output are the session totals, spread over its days by cache reads. Token counts only, no content.",
+ "sessions": [
+  {
+   "title": "Sable work history",
+   "session": "session_01QkEuxH3QTN9KoWQECwR1Yu",
+   "project": "Sable",
+   "model": "claude-opus-5-5",
+   "started": "2026-11-04T23:51:40Z",
+   "ended": "2026-11-07T22:55:51Z",
+   "totals": {
+    "input": 166347,
+    "cache_write": 4633311,
+    "cache_read": 213192569,
+    "output": 1074932,
+    "cost_usd": 94.38
+   },
+   "days": [
+    {
+     "day": "2026-11-05",
+     "replies": 436,
+     "cw5": 344544,
+     "cw1h": 1195292,
+     "cache_read": 100544660,
+     "input": 78452,
+     "output": 506953
+    },
+    {
+     "day": "2026-11-06",
+     "replies": 5,
+     "cw5": 0,
+     "cw1h": 126203,
+     "cache_read": 501141,
+     "input": 391,
+     "output": 2527
+    },
+    {
+     "day": "2026-11-07",
+     "replies": 463,
+     "cw5": 1973670,
+     "cw1h": 993602,
+     "cache_read": 112146768,
+     "input": 87504,
+     "output": 565452
+    }
+   ]
+  },
+  {
+   "title": "Ledger status check",
+   "session": "session_01QkEuxLzyTnM8hqu87pfbca",
+   "project": "ai-usage",
+   "model": "claude-opus-5-5",
+   "started": "2026-10-31T22:50:58Z",
+   "ended": "2026-11-08T06:45:45Z",
+   "totals": {
+    "input": 2790,
+    "cache_write": 585491,
+    "cache_read": 5600831,
+    "output": 31132,
+    "cost_usd": 6.44
+   },
+   "days": [
+    {
+     "day": "2026-10-31",
+     "replies": 25,
+     "cw5": 0,
+     "cw1h": 67040,
+     "cache_read": 2418792,
+     "input": 1205,
+     "output": 13445
+    },
+    {
+     "day": "2026-11-02",
+     "replies": 10,
+     "cw5": 0,
+     "cw1h": 86366,
+     "cache_read": 1184386,
+     "input": 590,
+     "output": 6583
+    },
+    {
+     "day": "2026-11-05",
+     "replies": 12,
+     "cw5": 0,
+     "cw1h": 310197,
+     "cache_read": 1451662,
+     "input": 723,
+     "output": 8069
+    },
+    {
+     "day": "2026-11-08",
+     "replies": 4,
+     "cw5": 0,
+     "cw1h": 121888,
+     "cache_read": 545991,
+     "input": 272,
+     "output": 3035
+    }
+   ]
+  }
+ ]
+}

@@ -37,6 +37,9 @@ CODEX_DIRS = [os.path.join(HOME, '.codex', 'sessions'), os.path.join(HOME, '.cod
 ANTIGRAVITY_DIRS = [os.path.join(HOME, '.gemini', 'antigravity-cli'), os.path.join(HOME, '.gemini', 'antigravity')]
 GEMINI_CLI_DIR = os.path.join(HOME, '.gemini', 'tmp')
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out')
+# Claude Code sessions that ran in the cloud, so their logs never reach this Mac: per-day
+# token counts imported by hand (see README, "Cloud sessions").
+CLOUD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cloud', 'claude-cloud-sessions.json')
 # Folders the agy logs name for each conversation, kept because those logs get pruned.
 FOLDERS_FILE = os.path.join(OUT, 'antigravity_folders.json')
 SINCE = '2026-05-01'
@@ -991,6 +994,21 @@ def load_gemini_cli():
     return rows
 
 
+def cloud_rows(doc):
+    """One usage row per day of each imported cloud session."""
+    return [dict(day=d['day'], model=s['model'], project=s['project'], replies=d['replies'],
+                 usage=dict(input=d['input'], cw5=d['cw5'], cw1h=d['cw1h'], cache_read=d['cache_read'],
+                            output=d['output'], thinking=0))
+            for s in doc.get('sessions', []) for d in s['days']]
+
+
+def load_cloud():
+    if not os.path.exists(CLOUD_FILE):
+        return []
+    with open(CLOUD_FILE) as f:
+        return cloud_rows(json.load(f))
+
+
 def load_git():
     commits = []
     for line in sh(['git', 'log', '--all', '--since=' + SINCE, '--format=%H%x1f%h%x1f%cI%x1f%s'], REPO).splitlines():
@@ -1169,6 +1187,12 @@ def build():
         row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']), c['project'])]
         row['replies'] += 1
         add(row, c['usage'])
+    cloud = load_cloud()
+    for c in cloud:  # whole days from the cloud, so no task, rebuilds or per-call detail
+        row = daily[(c['day'], 'Claude Code', norm_model(c['model']), 'main', False, c['project'])]
+        row['replies'] += c['replies']
+        add(row, c['usage'])
+        row['cost_usd'] += cost(c['model'], c['usage']) or 0
     for g in gemini_rows:  # no branch on record, so never attributed to a task
         row = daily[(local_day(g['ts']), g['tool'], g['model'], g['role'], False, g['project'])]
         row['replies'] += 1
@@ -1332,6 +1356,9 @@ def build():
         total, 100 * attributed / total if total else 0))
     print('Prompts: %d   Compactions: %d   Commit commands matched: %d/%d' % (
         len(claude['prompts']), len(claude['compactions']), len(commit_task), len(commit_cmds)))
+    if cloud:
+        print('Claude cloud sessions (imported): %d days, %d replies, $%.2f API-equivalent' % (
+            len(cloud), sum(c['replies'] for c in cloud), sum(cost(c['model'], c['usage']) or 0 for c in cloud)))
     print('Codex: %d sessions, %d calls' % (codex_sessions, len(codex_rows)))
     placed = sum(agy_stats[k] for k in ('by folder', 'by log', 'by request'))
     print('Antigravity: %d Sable conversations (%d by folder, %d by agy log, %d by request), %d in other '

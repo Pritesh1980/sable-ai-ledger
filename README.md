@@ -32,8 +32,22 @@ session started in the Sable checkout counts as Sable even when it works on anot
 repo; the ingest only leaves a commit made into another repo under `~/code` off Sable's
 tasks.
 
-Usage that never reaches this Mac is not counted: cloud sessions (claude.ai/code,
-Codex cloud) and chats in the Claude or ChatGPT apps.
+## Cloud sessions
+
+Claude Code sessions that run in the cloud (claude.ai/code, marked `anthropic_cloud` in
+the sessions list) leave no logs on this Mac. Sessions started from the phone through
+Remote Control run on the Mac and are already counted. `cloud/claude-cloud-sessions.json`
+holds per-day token counts for cloud sessions, imported by hand: the ingest adds them
+to the daily rows as Claude Code, role main, with no task, rebuilds or per-call detail.
+
+Imported on 2026-11-08 from the sessions API (via a Claude session's session tools):
+"Sable work history" (Sable, 4-7 Nov) and "Ledger status check" (ai-usage, 31 Oct-8 Nov).
+Each session's totals (`get_session`) are exact. The per-day split comes from its reply
+events: cache reads and writes by day, with what the events did not reach put on the
+session's first day; input and output are spread by cache reads, because streamed
+events under-report them. To add a session, append it in the same shape.
+
+Not counted at all: Codex cloud, and chats in the Claude or ChatGPT apps.
 
 ## Refresh
 
