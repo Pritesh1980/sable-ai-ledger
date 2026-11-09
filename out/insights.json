@@ -1,0 +1,53 @@
+{
+ "through": "2026-11-09",
+ "items": [
+  {
+   "kind": "tip",
+   "area": "models",
+   "title": "Try Sonnet for small and medium jobs",
+   "detail": "Opus took 99% of Claude spend in the last 28 days. Your small and medium tasks cost a median $2.43 on Opus and $1.09 on Sonnet, and passed CI first time 88% and 100% of the time. Switch with /model sonnet for fixes and small features, and keep Opus for big or tricky work."
+  },
+  {
+   "kind": "tip",
+   "area": "context",
+   "title": "Keep sessions to one task each",
+   "detail": "Each reply read 224k tokens on average in the last 7 days (231k the week before). Re-reading that context was 43% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+  },
+  {
+   "kind": "tip",
+   "area": "rebuilds",
+   "title": "Start fresh after a break instead of resuming",
+   "detail": "12 cache rebuilds cost $15 in the last 7 days (8 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+  },
+  {
+   "kind": "tip",
+   "area": "ci",
+   "title": "CI is failing more often on the first push",
+   "detail": "18 of 22 tasks shipped in the last 14 days passed CI first time, against 98% before (missed: PR #191, PR #174, PR #172). Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what fails."
+  },
+  {
+   "kind": "tip",
+   "area": "rework",
+   "title": "Ask for tests on the tricky part up front",
+   "detail": "15 later commits changed files from 5 tasks shipped in the last 28 days, most after PR #166 (5). Follow-up fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part before it builds."
+  },
+  {
+   "kind": "trend",
+   "area": "spend",
+   "title": "Claude spend up 78% on the week before",
+   "detail": "$170 in the last 7 days, against $95. That is the third week running it has risen. Busiest day: Sat 7 Nov, at $64."
+  },
+  {
+   "kind": "trend",
+   "area": "tools",
+   "title": "Codex use up 8.3x",
+   "detail": "316 calls in the last 7 days, against 38 the week before."
+  },
+  {
+   "kind": "trend",
+   "area": "tools",
+   "title": "Antigravity use up 2.4x",
+   "detail": "312 calls in the last 7 days, against 129 the week before."
+  }
+ ]
+}

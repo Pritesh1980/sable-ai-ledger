@@ -56,7 +56,28 @@ The Pages workflow adds the document skeleton (`<!doctype html>`, charset, viewp
 in front of `ledger/index.html` and copies `out/{daily,tasks,prices,waveform}.json`
 and `out/meta.json` to `data/`, which is where the page fetches them from. `meta.json`
 holds the time of the last refresh, which the page shows as "Last updated" beside
-"Data through" (the latest call in the data).
+"Data through" (the latest call in the data). `out/insights.json` is copied too.
+
+## Tips and trends
+
+Every ingest also writes `out/insights.json`: tips on working better and trends worth
+knowing, from `insights()` in `ingest.py`. The page shows them under "Tips and trends",
+and the ingest prints them at the end of its summary. Weeks count back from the last day
+Claude Code was used. Each rule speaks only when the data backs it:
+
+- **Models**: Opus took 80%+ of Claude spend over 28 days, and shipped small or medium
+  tasks cost Sonnet under 60% of what they cost Opus (at least 3 tasks each).
+- **Context**: replies read 150k+ tokens on average this week; otherwise a 20%+ drop is
+  noted as a trend.
+- **Cache rebuilds**: 3+ rebuilds costing $1+ this week.
+- **CI**: first-time CI passes over the last 14 days at least 10 points below earlier
+  tasks (a tip), or 10 points above (a trend). Needs 4+ tasks on each side.
+- **Rework**: 5+ later commits touched files from tasks shipped in the last 28 days.
+- **Spend, tools and the biggest task** (trends): this week's Claude spend against last
+  week's; a 2x swing in calls for a tool with 100+ calls; and a task started this week
+  that cost twice the median shipped task or more.
+
+Tips come first, then trends, at most 8 in all.
 
 ## Daily refresh
 

@@ -34,7 +34,7 @@ jobs:
             printf '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             cat ledger/index.html
           } > site/index.html
-          cp out/daily.json out/tasks.json out/prices.json out/waveform.json out/meta.json site/data/
+          cp out/daily.json out/tasks.json out/prices.json out/waveform.json out/meta.json out/insights.json site/data/
           touch site/.nojekyll
 
       - uses: actions/configure-pages@v5

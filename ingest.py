@@ -24,7 +24,8 @@ import sys
 import tempfile
 from functools import lru_cache
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from statistics import median
 from urllib.parse import unquote
 
 HOME = os.path.expanduser('~')
@@ -1075,6 +1076,157 @@ def ci_summary(runs):
     return len(cycles), sum(1 for s in cycles if not s['ok']), cycles[0]['ok']
 
 
+def _usd(x):
+    return '$%.2f' % x if x < 10 else '${:,.0f}'.format(x)
+
+
+def _tok(n):
+    return '%.1fM' % (n / 1e6) if n >= 1e6 else '%.0fk' % (n / 1e3)
+
+
+def _pct(x):
+    return '%d%%' % round(100 * x)
+
+
+def _day(day):
+    d = date.fromisoformat(day)
+    return '%s %d %s' % (d.strftime('%a'), d.day, d.strftime('%b'))
+
+
+def insights(daily, tasks):
+    """Tips on working better, and trends worth knowing, from the daily and task rows.
+
+    Weeks count back from the last day Claude Code was used, the same weeks the page's
+    figures use. Each rule speaks only when the data backs it; tips come before trends."""
+    claude = [r for r in daily if r['tool'] == 'Claude Code']
+    if not claude:
+        return dict(through=None, items=[])
+    end = max(r['day'] for r in claude)
+    end_d = date.fromisoformat(end)
+    age = lambda day: (end_d - date.fromisoformat(day)).days
+    window = lambda rows, lo, hi: [r for r in rows if lo <= age(r['day']) < hi]
+    spend = lambda rows: sum(r['cost_usd'] or 0 for r in rows)
+    replies = lambda rows: sum(r['replies'] for r in rows)
+    w0, w1, w2 = window(claude, 0, 7), window(claude, 7, 14), window(claude, 14, 21)
+    tips, trends = [], []
+
+    # Spend: this week against last, and whether it keeps climbing.
+    c0, c1, c2 = spend(w0), spend(w1), spend(w2)
+    if c1:
+        change = c0 / c1 - 1
+        title = ('Claude spend about level with the week before' if abs(change) < 0.1 else
+                 'Claude spend %s %s on the week before' % ('up' if change > 0 else 'down', _pct(abs(change))))
+        detail = '%s in the last 7 days, against %s.' % (_usd(c0), _usd(c1))
+        if c0 > c1 > c2 > 0:
+            detail += ' That is the third week running it has risen.'
+        by_day = Counter()
+        for r in w0:
+            by_day[r['day']] += r['cost_usd'] or 0
+        if by_day:
+            top_day, top = by_day.most_common(1)[0]
+            detail += ' Busiest day: %s, at %s.' % (_day(top_day), _usd(top))
+        trends.append(dict(kind='trend', area='spend', title=title, detail=detail))
+
+    # Models: Opus doing nearly everything, while Sonnet does small jobs for far less.
+    last28 = window(claude, 0, 28)
+    opus_share = spend([r for r in last28 if 'opus' in r['model']]) / spend(last28) if spend(last28) else 0
+    small = [t for t in tasks if t.get('size') in ('S', 'M') and t.get('shipped') and t.get('cost_usd')
+             and t.get('primary_model')]
+    opus = [t for t in small if 'opus' in t['primary_model']]
+    sonnet = [t for t in small if 'sonnet' in t['primary_model']]
+    if opus_share >= 0.8 and len(opus) >= 3 and len(sonnet) >= 3:
+        mo, ms = median(t['cost_usd'] for t in opus), median(t['cost_usd'] for t in sonnet)
+        if ms < 0.6 * mo:
+            detail = ('Opus took %s of Claude spend in the last 28 days. Your small and medium tasks cost a median '
+                      '%s on Opus and %s on Sonnet' % (_pct(opus_share), _usd(mo), _usd(ms)))
+            fo = [t['ci_first_pass'] for t in opus if t.get('ci_first_pass') is not None]
+            fs = [t['ci_first_pass'] for t in sonnet if t.get('ci_first_pass') is not None]
+            if len(fo) >= 3 and len(fs) >= 3:
+                detail += ', and passed CI first time %s and %s of the time' % (
+                    _pct(sum(fo) / len(fo)), _pct(sum(fs) / len(fs)))
+            detail += ('. Switch with /model sonnet for fixes and small features, and keep Opus for big or '
+                       'tricky work.')
+            tips.append(dict(kind='tip', area='models', title='Try Sonnet for small and medium jobs', detail=detail))
+
+    # Context: how much each reply re-reads.
+    ctx = lambda rows: sum(context(r) for r in rows) / replies(rows) if replies(rows) else None
+    x0, x1 = ctx(w0), ctx(w1)
+    if x0 and x0 >= 150_000:
+        reread = sum(r['cache_read'] * PRICES[r['model']][2] for r in w0 if r['model'] in PRICES) / 1e6
+        detail = 'Each reply read %s tokens on average in the last 7 days%s.' % (
+            _tok(x0), ' (%s the week before)' % _tok(x1) if x1 else '')
+        if c0:
+            detail += ' Re-reading that context was %s of Claude spend.' % _pct(reread / c0)
+        detail += (' Start a new session for each task, and /clear when you switch to something unrelated, so '
+                   'replies stop carrying old work.')
+        tips.append(dict(kind='tip', area='context', title='Keep sessions to one task each', detail=detail))
+    elif x0 and x1 and x0 < 0.8 * x1:
+        trends.append(dict(kind='trend', area='context', title='Leaner sessions this week',
+                           detail='Each reply read %s tokens on average, down from %s the week before.' % (
+                               _tok(x0), _tok(x1))))
+
+    # Cache rebuilds: resuming a big session after its cache expired.
+    rebuilds = lambda rows: sum(r['rebuilds'] for r in rows)
+    rebuild_cost = sum(r['rebuild_tokens'] * PRICES[r['model']][0] * CACHE_WRITE_1H
+                       for r in w0 if r['model'] in PRICES) / 1e6
+    if rebuilds(w0) >= 3 and rebuild_cost >= 1:
+        tips.append(dict(kind='tip', area='rebuilds', title='Start fresh after a break instead of resuming', detail=(
+            '%d cache rebuilds cost %s in the last 7 days (%d the week before). Once a session sits idle for an '
+            'hour its cache expires, and the next reply pays to write the whole conversation again. After a long '
+            'break, start a new session with a short summary, or run /compact before you step away.' % (
+                rebuilds(w0), _usd(rebuild_cost), rebuilds(w1)))))
+
+    # CI: first-time passes on recent tasks against earlier ones.
+    with_ci = [t for t in tasks if t.get('shipped') and t.get('ci_first_pass') is not None]
+    recent = [t for t in with_ci if age(t['shipped']) < 14]
+    earlier = [t for t in with_ci if age(t['shipped']) >= 14]
+    if len(recent) >= 4 and len(earlier) >= 4:
+        rate = lambda ts: sum(t['ci_first_pass'] for t in ts) / len(ts)
+        pr, pe = rate(recent), rate(earlier)
+        if pr <= pe - 0.1:
+            failed = [t['task'] for t in recent if not t['ci_first_pass']]
+            tips.append(dict(kind='tip', area='ci', title='CI is failing more often on the first push', detail=(
+                '%d of %d tasks shipped in the last 14 days passed CI first time, against %s before (missed: %s). '
+                'Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what '
+                'fails.' % (sum(t['ci_first_pass'] for t in recent), len(recent), _pct(pe), ', '.join(failed[:3])))))
+        elif pr >= pe + 0.1:
+            trends.append(dict(kind='trend', area='ci', title='CI passing first time more often', detail=(
+                '%s of tasks shipped in the last 14 days passed CI first time, up from %s before.' % (
+                    _pct(pr), _pct(pe)))))
+
+    # Rework: shipped work whose files soon needed changing again.
+    reworked = sorted((t for t in tasks if t.get('rework') and t.get('shipped') and age(t['shipped']) < 28),
+                      key=lambda t: -t['rework'])
+    if sum(t['rework'] for t in reworked) >= 5:
+        worst = reworked[0]
+        tips.append(dict(kind='tip', area='rework', title='Ask for tests on the tricky part up front', detail=(
+            '%d later commits changed files from %d tasks shipped in the last 28 days, most after %s (%d). Follow-up '
+            'fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part '
+            'before it builds.' % (sum(t['rework'] for t in reworked), len(reworked), worst['task'],
+                                   worst['rework']))))
+
+    # Tools: a big swing between Claude Code, Codex and Antigravity.
+    for tool in ('Claude Code', 'Codex', 'Antigravity'):
+        rows = [r for r in daily if r['tool'] == tool]
+        a, b = replies(window(rows, 0, 7)), replies(window(rows, 7, 14))
+        if max(a, b) >= 100 and b and (a >= 2 * b or b >= 2 * a):
+            trends.append(dict(kind='trend', area='tools', title='%s use %s' % (
+                tool, 'up %sx' % ('%.1f' % (a / b) if a < 10 * b else '%.0f' % (a / b)) if a > b else 'down %s' % _pct(1 - a / b)), detail=(
+                '%d calls in the last 7 days, against %d the week before.' % (a, b))))
+
+    # The week's biggest task, when it stands well clear of the usual.
+    costed = [t['cost_usd'] for t in tasks if t.get('shipped') and t.get('cost_usd')]
+    this_week = [t for t in tasks if t.get('started') and age(t['started']) < 7 and t.get('cost_usd')]
+    if costed and this_week:
+        big, usual = max(this_week, key=lambda t: t['cost_usd']), median(costed)
+        if big['cost_usd'] >= 2 * usual:
+            trends.append(dict(kind='trend', area='tasks', title='Biggest task this week: %s' % big['task'], detail=(
+                '"%s" cost %s over %d replies, about %.0f times your median task (%s).' % (
+                    big['title'], _usd(big['cost_usd']), big['replies'], big['cost_usd'] / usual, _usd(usual)))))
+
+    return dict(through=end, items=(tips + trends)[:8])
+
+
 def refresh_stamp(now):
     """out/meta.json: when this ingest ran. The page shows it as "Last updated", so a
     refresh that found no new usage still shows it ran."""
@@ -1342,6 +1494,10 @@ def build():
         json.dump(waveform, f, separators=(',', ':'))
     print('  out/waveform.json  %d calls since %s  %d KB' % (
         len(waveform['rows']), local_day(since), os.path.getsize(os.path.join(OUT, 'waveform.json')) // 1024))
+    tips = insights(daily_rows, task_rows)
+    with open(os.path.join(OUT, 'insights.json'), 'w') as f:
+        json.dump(tips, f, indent=1)
+    print('  out/insights.json  %d tips and trends through %s' % (len(tips['items']), tips['through']))
     stamp = refresh_stamp(datetime.now(timezone.utc))
     with open(os.path.join(OUT, 'meta.json'), 'w') as f:
         json.dump(stamp, f)
@@ -1376,6 +1532,8 @@ def build():
         print('Unattributed branches:', ', '.join('%s (%d)' % kv for kv in no_pr.most_common(8)))
     for name, rows in datasets.items():
         print('  out/%s.json  %d rows  %d KB' % (name, len(rows), os.path.getsize(os.path.join(OUT, name + '.json')) // 1024))
+    for item in tips['items']:
+        print('%s: %s. %s' % (item['kind'].capitalize(), item['title'], item['detail']))
 
 
 if __name__ == '__main__':

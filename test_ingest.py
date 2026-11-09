@@ -545,3 +545,120 @@ class CloudSessions(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def day_row(day, tool='Claude Code', model='claude-opus-5-5', replies=10, cost_usd=10.0, cache_read=0,
+            rebuilds=0, rebuild_tokens=0, **kw):
+    row = dict(day=day, tool=tool, model=model, role='main', attributed=True, project='Sable', replies=replies,
+               cost_usd=cost_usd if tool == 'Claude Code' else None, rebuilds=rebuilds,
+               rebuild_tokens=rebuild_tokens, input=0, cw5=0, cw1h=0, cache_read=cache_read, output=0, thinking=0)
+    row.update(kw)
+    return row
+
+
+def task_row(n, model='claude-opus-5-5', cost=5.0, shipped='2026-11-01', size='S', ci=True, **kw):
+    row = dict(task='PR #%d' % n, title='Task %d' % n, size=size, shipped=shipped, started=shipped, cost_usd=cost,
+               primary_model=model, ci_first_pass=ci, rework=0, replies=20)
+    row.update(kw)
+    return row
+
+
+class Insights(unittest.TestCase):
+    def titles(self, daily, tasks=()):
+        return [i['title'] for i in ing.insights(daily, list(tasks))['items']]
+
+    def test_no_claude_usage_means_no_insights(self):
+        self.assertEqual(ing.insights([day_row('2026-11-09', tool='Codex')], []), dict(through=None, items=[]))
+
+    def test_weeks_count_back_from_the_last_claude_day(self):
+        daily = [day_row('2026-11-09', cost_usd=30), day_row('2026-11-03', cost_usd=20),
+                 day_row('2026-11-02', cost_usd=10), day_row('2026-10-27', cost_usd=10),
+                 day_row('2026-10-26', cost_usd=5)]
+        out = ing.insights(daily, [])
+        self.assertEqual(out['through'], '2026-11-09')
+        spend = out['items'][0]
+        self.assertEqual(spend['title'], 'Claude spend up 150% on the week before')
+        self.assertIn('$50 in the last 7 days, against $20.', spend['detail'])
+        self.assertIn('third week running', spend['detail'])
+        self.assertIn('Busiest day: Mon 9 Nov, at $30.', spend['detail'])
+
+    def test_level_spend_says_so(self):
+        self.assertIn('Claude spend about level with the week before',
+                      self.titles([day_row('2026-11-09', cost_usd=10), day_row('2026-11-01', cost_usd=10.5)]))
+
+    def test_suggests_sonnet_when_opus_does_everything_and_sonnet_is_cheaper(self):
+        daily = [day_row('2026-11-09')]
+        tasks = [task_row(i, cost=5) for i in range(3)] + [
+            task_row(10 + i, model='claude-sonnet-5-5', cost=1) for i in range(3)]
+        out = ing.insights(daily, tasks)['items']
+        tip = next(i for i in out if i['title'] == 'Try Sonnet for small and medium jobs')
+        self.assertIn('median $5.00 on Opus and $1.00 on Sonnet', tip['detail'])
+        self.assertIn('passed CI first time 100% and 100%', tip['detail'])
+        # Too few Sonnet tasks to compare: no tip.
+        self.assertNotIn('Try Sonnet for small and medium jobs', self.titles(daily, tasks[:5]))
+        # Sonnet already does a fair share: no tip.
+        mixed = daily + [day_row('2026-11-08', model='claude-sonnet-5-5', cost_usd=10)]
+        self.assertNotIn('Try Sonnet for small and medium jobs', self.titles(mixed, tasks))
+
+    def test_flags_long_context_and_prices_the_rereading(self):
+        daily = [day_row('2026-11-09', replies=10, cost_usd=1.0, cache_read=2_000_000),
+                 day_row('2026-11-01', replies=10, cost_usd=1.0, cache_read=1_000_000)]
+        tip = next(i for i in ing.insights(daily, [])['items'] if i['area'] == 'context')
+        self.assertEqual(tip['title'], 'Keep sessions to one task each')
+        # 200k per reply this week, 100k last; 2M cache reads at $0.20/M = $0.40 of $1.00.
+        self.assertIn('200k tokens on average in the last 7 days (100k the week before)', tip['detail'])
+        self.assertIn('was 40% of Claude spend', tip['detail'])
+
+    def test_praises_a_clear_drop_in_context(self):
+        daily = [day_row('2026-11-09', cache_read=1_000_000), day_row('2026-11-01', cache_read=1_400_000)]
+        self.assertIn('Leaner sessions this week', self.titles(daily))
+
+    def test_prices_cache_rebuilds_at_the_one_hour_write_rate(self):
+        daily = [day_row('2026-11-09', rebuilds=3, rebuild_tokens=200_000)]
+        tip = next(i for i in ing.insights(daily, [])['items'] if i['area'] == 'rebuilds')
+        # 200k tokens at Opus 5.5's $4 input x 2 for a 1-hour write = $1.60.
+        self.assertIn('3 cache rebuilds cost $1.60 in the last 7 days (0 the week before)', tip['detail'])
+        self.assertNotIn('Start fresh after a break instead of resuming',
+                         self.titles([day_row('2026-11-09', rebuilds=2, rebuild_tokens=500_000)]))
+
+    def test_compares_recent_ci_first_passes_with_earlier_ones(self):
+        daily = [day_row('2026-11-09')]
+        earlier = [task_row(i, shipped='2026-10-01') for i in range(4)]
+        worse = [task_row(10 + i, shipped='2026-11-05', ci=i > 1) for i in range(4)]
+        tip = next(i for i in ing.insights(daily, earlier + worse)['items'] if i['area'] == 'ci')
+        self.assertIn('2 of 4 tasks shipped in the last 14 days passed CI first time, against 100% before '
+                      '(missed: PR #10, PR #11)', tip['detail'])
+        better = [task_row(i, shipped='2026-10-01', ci=i > 1) for i in range(4)] + [
+            task_row(10 + i, shipped='2026-11-05') for i in range(4)]
+        self.assertIn('CI passing first time more often', self.titles(daily, better))
+
+    def test_rework_tip_names_the_most_reworked_task(self):
+        tasks = [task_row(1, shipped='2026-11-01', rework=4), task_row(2, shipped='2026-10-30', rework=1),
+                 task_row(3, shipped='2026-09-01', rework=9)]
+        tip = next(i for i in ing.insights([day_row('2026-11-09')], tasks)['items'] if i['area'] == 'rework')
+        self.assertIn('5 later commits changed files from 2 tasks shipped in the last 28 days, most after PR #1 (4)',
+                      tip['detail'])
+
+    def test_notes_big_swings_between_tools(self):
+        daily = [day_row('2026-11-09'), day_row('2026-11-08', tool='Antigravity', model='gemini-4-argon', replies=240),
+                 day_row('2026-11-01', tool='Antigravity', model='gemini-4-argon', replies=100)]
+        self.assertIn('Antigravity use up 2.4x', self.titles(daily))
+        quiet = daily[:1] + [day_row('2026-11-08', tool='Codex', model='gpt-6-sol', replies=40),
+                             day_row('2026-11-01', tool='Codex', model='gpt-6-sol', replies=10)]
+        self.assertFalse([t for t in self.titles(quiet) if t.startswith('Codex')])
+
+    def test_names_a_task_far_above_the_median(self):
+        tasks = [task_row(i, cost=2, shipped='2026-10-01') for i in range(3)] + [
+            task_row(9, cost=10, shipped='2026-11-08', title='Guest spots')]
+        trend = next(i for i in ing.insights([day_row('2026-11-09')], tasks)['items'] if i['area'] == 'tasks')
+        self.assertEqual(trend['title'], 'Biggest task this week: PR #9')
+        self.assertIn('"Guest spots" cost $10 over 20 replies, about 5 times your median task ($2.00)',
+                      trend['detail'])
+
+    def test_tips_come_before_trends_and_the_list_is_capped(self):
+        items = ing.insights([day_row('2026-11-09', rebuilds=5, rebuild_tokens=1_000_000, cache_read=5_000_000),
+                              day_row('2026-11-01')], [])['items']
+        kinds = [i['kind'] for i in items]
+        self.assertEqual(kinds, sorted(kinds))  # every 'tip' before any 'trend'
+        self.assertEqual(kinds[0], 'tip')
+        self.assertLessEqual(len(items), 8)

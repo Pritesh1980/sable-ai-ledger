@@ -147,6 +147,12 @@ a:hover { text-decoration-color: var(--bone); }
 .spread-head h2:focus { outline: none; }
 .spread-head p { margin: 6px 0 0; color: var(--ash); max-width: 78ch; font-size: var(--step--1); line-height: 1.55; }
 .spread-body { display: grid; gap: 32px; min-width: 0; }
+.tips { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.tip { border-top: 1px solid var(--hairline); padding-top: 12px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.tip-kind { margin: 0; font-size: var(--step--1); font-weight: 600; color: var(--ash); text-transform: uppercase; letter-spacing: 0.06em; }
+.tip-kind.is-tip { color: var(--bone); }
+.tip-title { margin: 0; font-weight: 600; }
+.tip-detail { margin: 0; color: var(--ash); font-size: var(--step--1); line-height: 1.55; max-width: 70ch; }
 .spread-body > * { min-width: 0; }
 .chart { width: 100%; min-width: 0; }
 .chart-title { margin: 0 0 4px; font-size: var(--step-0); font-weight: 600; }
@@ -282,6 +288,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   <div class="wrap mast-row">
     <h1 class="brand"><span class="brand-mark">Sable</span><span class="brand-sub">AI ledger</span></h1>
     <nav class="nav" aria-label="Sections">
+      <a href="#tips">Tips</a>
       <a href="#models">The models</a>
       <a href="#bill">The bill</a>
       <a href="#work">The work</a>
@@ -320,6 +327,16 @@ details.numbers[open] summary { margin-bottom: 10px; }
         <ul class="legend" id="wave-legend"></ul>
       </figcaption>
     </figure>
+  </section>
+
+  <section class="wrap spread" id="tips" aria-labelledby="tips-h" hidden>
+    <div class="spread-head">
+      <div>
+        <h2 id="tips-h" tabindex="-1">Tips and trends</h2>
+        <p id="tips-note">Ways to work better, worked out from the last few weeks at every refresh.</p>
+      </div>
+    </div>
+    <ol class="tips" id="tips-list"></ol>
   </section>
 
   <section class="wrap spread" id="models" aria-labelledby="models-h">
@@ -657,8 +674,9 @@ details.numbers[open] summary { margin-bottom: 10px; }
     return r.json();
   });
 
-  Promise.all([Promise.all(['daily', 'tasks', 'prices', 'waveform'].map(load)), load('meta').catch(() => null), document.fonts.ready])
-    .then(([[daily, tasks, prices, wave], meta]) => start({ daily, tasks, prices, wave, meta }))
+  Promise.all([Promise.all(['daily', 'tasks', 'prices', 'waveform'].map(load)), load('meta').catch(() => null),
+    load('insights').catch(() => null), document.fonts.ready])
+    .then(([[daily, tasks, prices, wave], meta, insights]) => start({ daily, tasks, prices, wave, meta, insights }))
     .catch((err) => {
       $('#scope').textContent = 'The ledger did not load. Its data files are missing or unreadable (' + err.message + '). Ask Claude to refresh the Sable AI ledger to publish them again.';
     });
@@ -783,6 +801,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     codexRoles(D);
     priceTable(D);
     projectTable(D);
+    tipsList(D);
 
     let pending = 0;
     window.addEventListener('resize', () => {
@@ -1881,6 +1900,20 @@ details.numbers[open] summary { margin-bottom: 10px; }
       row.append(el('span', null, names[role] || role), track, val);
       return row;
     }));
+  }
+
+  function tipsList(D) {
+    const items = D.insights && D.insights.items;
+    if (!items || !items.length) return;
+    $('#tips-note').textContent = 'Ways to work better and trends worth knowing, worked out from your usage at every refresh. Weeks count back from '
+      + F.day(D.insights.through) + ', the last day Claude Code was used.';
+    $('#tips-list').replaceChildren(...items.map((i) => {
+      const li = el('li', 'tip');
+      li.append(el('p', 'tip-kind' + (i.kind === 'tip' ? ' is-tip' : ''), i.kind === 'tip' ? 'Tip' : 'Trend'),
+        el('p', 'tip-title', i.title), el('p', 'tip-detail', i.detail));
+      return li;
+    }));
+    $('#tips').hidden = false;
   }
 
   function projectTable(D) {
