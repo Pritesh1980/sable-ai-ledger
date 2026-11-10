@@ -353,7 +353,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div class="seg" role="group" aria-label="Period shown" id="tl-view"></div>
     </div>
     <div>
-      <p class="chart-note">A git graph with the AIs as branches. Claude Code's lane sits above main, Codex and Antigravity below. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line for details, or click one to see its relay below. Drag the slider, or pinch and scroll, to zoom.</p>
+      <p class="chart-note">A git graph with the AIs as branches. Claude Code's lane sits above main, Codex and Antigravity below. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line to see which AIs worked on it and when it merged, or click one to see its relay below. Drag the slider, or pinch and scroll, to zoom.</p>
       <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Every Claude Code, Codex and Antigravity session on Sable over the last 30 days, with merges to main"></div>
       <ul class="legend" id="tl-legend" style="margin-top: 10px"></ul>
     </div>
@@ -1962,7 +1962,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
       const name = W.tasks[k], t = info.get(name);
       return t && t.title && t.title !== name ? t.title : null;
     };
-    const short = (k) => W.tasks[k].replace(/^Branch /, '');
     const narrow = window.innerWidth < 640;
 
     // A session's calls with no gap over IDLE make one stretch. Without session ids, tool and task stand in.
@@ -2153,8 +2152,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
           const m = b.merge;
           const end = !m ? 'Not merged in these 30 days'
             : (m[4] === 'pr' ? 'PR merged into another branch ' : 'Merged to main ') + dayOf(m[0]) + ', ' + clock(m[0]);
-          return '<div style="max-width:280px;white-space:normal"><b>' + esc(W.tasks[b.k]) + '</b>' + (titleOf(b.k) ? ' ' + esc(titleOf(b.k)) : '') + '</div>'
-            + sub('Started ' + dayOf(b.parts[0].from) + ', ' + clock(b.parts[0].from))
+          return '<b>Started ' + dayOf(b.parts[0].from) + ', ' + clock(b.parts[0].from) + '</b>'
             + sub(whoDid(b.parts).map(esc).join('<br>')) + sub(end) + sub('Click to see its relay below');
         },
       }),
@@ -2214,13 +2212,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
               kids.push({ type: 'line', shape: { x1: xs, y1: yy, x2: Math.max(xs, stop, X(Math.max(...s.parts.map((p) => p.end)))), y2: yy },
                 style: { stroke: c, lineWidth: lw, opacity: op } });
               for (const p of s.parts) kids.push(capsule(X(p.from), X(p.end), yy, c, p.reviewing, op));
-              if (i === 0) {
-                const text = short(b.k), tw = text.length * 5.9 + 4;
-                if (xs - R - 8 - tw > X(s.prevEnd) + 6) {
-                  kids.push({ type: 'text', silent: true, x: xs - R - 6, y: yy, style: { text, fill: c, opacity: op,
-                    font: (on ? '600 ' : '500 ') + '10px Archivo, sans-serif', align: 'right', verticalAlign: 'middle' } });
-                }
-              }
               prevY = yy;
               prevC = c;
             });
