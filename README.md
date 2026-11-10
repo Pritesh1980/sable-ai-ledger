@@ -81,14 +81,16 @@ Tips come first, then trends, at most 8 in all.
 
 ## Sable timeline
 
-The page's "Who worked when" section draws every AI session as its own bar, coloured for
-Claude Code, Codex or Antigravity. A session is split into separate bars wherever it sat idle
-for over 30 minutes, and bars are stacked so sessions running at the same time sit side by
-side. Paler bars are reviewing. Diamonds on vertical lines mark each commit that landed on
-main (`merges` in `out/waveform.json`, taken from main's first-parent history). Clicking a bar
-opens the relay for its task below: who built, who reviewed, who fixed, and when it merged.
-Sable calls only, last 30 days. Each waveform row now ends with project and session indices
-(into `projects` and `sessions`).
+The page's "Who worked when" section is a git graph with the AIs as branches. Main runs along
+the top, and Claude Code, Codex and Antigravity each have a lane below it. Every task is a line
+that forks off main into the lane of the AI working on it, crosses to another lane when a
+different AI takes over (a review, say), and joins main again with a dot where it merged
+(`merges` in `out/waveform.json`, from main's first-parent history; a hollow dot when the PR
+merged into another branch). Lines that are live at the same time get their own track in a lane.
+Capsules on a line are stretches of work, split wherever a session sat idle for over 30
+minutes; hollow ones are reviewing. Work not tied to a task sits faintly at the top of its lane.
+Clicking a line opens the relay for its task below. Sable calls only, last 30 days. Each
+waveform row ends with project and session indices (into `projects` and `sessions`).
 
 ## Daily refresh
 
