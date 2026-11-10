@@ -81,8 +81,8 @@ Tips come first, then trends, at most 8 in all.
 
 ## Sable timeline
 
-The page's "Who worked when" section is a git graph with the AIs as branches. Main runs along
-the top, and Claude Code, Codex and Antigravity each have a lane below it. Every task is a line
+The page's "Who worked when" section is a git graph with the AIs as branches. Claude Code's lane
+sits above main, and Codex and Antigravity each have a lane below it. Every task is a line
 that forks off main into the lane of the AI working on it, crosses to another lane when a
 different AI takes over (a review, say), and joins main again with a dot where it merged
 (`merges` in `out/waveform.json`, from main's first-parent history; a hollow dot when the PR

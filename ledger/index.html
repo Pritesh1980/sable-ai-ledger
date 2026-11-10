@@ -353,7 +353,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div class="seg" role="group" aria-label="Period shown" id="tl-view"></div>
     </div>
     <div>
-      <p class="chart-note">A git graph with the AIs as branches. Main runs along the top. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line for details, or click one to see its relay below. Drag the slider, or pinch and scroll, to zoom.</p>
+      <p class="chart-note">A git graph with the AIs as branches. Claude Code's lane sits above main, Codex and Antigravity below. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line for details, or click one to see its relay below. Drag the slider, or pinch and scroll, to zoom.</p>
       <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Every Claude Code, Codex and Antigravity session on Sable over the last 30 days, with merges to main"></div>
       <ul class="legend" id="tl-legend" style="margin-top: 10px"></ul>
     </div>
@@ -2062,22 +2062,27 @@ details.numbers[open] summary { margin-bottom: 10px; }
       ends[i] = s.to;
       s.track = i;
     });
-    const MAIN = 0.6;
-    let y = 1.5;
+    // Claude Code sits above main, the others below; each lane's first track is the one nearest main.
+    let MAIN = 0.6;
+    let y = 0.2;
     const lanes = [];
     TOOLS.forEach((t, i) => {
+      if (i === 1) { MAIN = y + 0.9; y = MAIN + 0.9; }
       const nT = tracks[i].length, hasLoose = loose.some((s) => s.tool === i);
       if (!nT && !hasLoose) return;
-      const lane = { tool: i, top: y };
+      const lane = { tool: i, top: y, above: i === 0 };
       y += 0.95;
       if (hasLoose) { lane.loose = y + 0.5; y += 1; }
       lane.first = y + 0.5;
+      lane.n = nT;
       y += nT + 0.35;
       lane.bottom = y;
       lanes[i] = lane;
     });
+    if (MAIN < 0.9) { MAIN = 0.6; } // no Claude Code lane: main stays at the top
     const ROWS = y;
-    for (const b of branches) for (const s of b.segs) s.y = lanes[s.tool].first + s.track;
+    const trackY = (lane, k) => (lane.above ? lane.first + lane.n - 1 - k : lane.first + k);
+    for (const b of branches) for (const s of b.segs) s.y = trackY(lanes[s.tool], s.track);
 
     // The note: how much of the work overlapped.
     const hours = new Map();
@@ -2176,7 +2181,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
             kids.push({ type: 'text', x: g.x + 2, y: yM - 7, style: { text: 'main', fill: FG, font: '600 11px Archivo, sans-serif', verticalAlign: 'bottom' } });
             for (const lane of lanes) {
               if (!lane) continue;
-              const yT = api.coord([0, lane.top])[1];
+              const yT = api.coord([0, lane.above ? lane.bottom : lane.top])[1];
               kids.push({ type: 'line', shape: { x1: g.x, y1: yT, x2: g.x + g.width, y2: yT }, style: { stroke: LINE } });
             }
             return { type: 'group', children: kids };
