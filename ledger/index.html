@@ -147,6 +147,10 @@ a:hover { text-decoration-color: var(--bone); }
 .spread-head h2:focus { outline: none; }
 .spread-head p { margin: 6px 0 0; color: var(--ash); max-width: 78ch; font-size: var(--step--1); line-height: 1.55; }
 .spread-body { display: grid; gap: 32px; min-width: 0; }
+.relay { border-top: 1px solid var(--hairline); padding-top: 20px; margin-top: 8px; min-width: 0; }
+.relay-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.relay-pick { display: flex; align-items: center; gap: 8px; font-size: var(--step--1); color: var(--ash); min-width: 0; max-width: 100%; }
+.relay-pick select { font: inherit; color: var(--bone); background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; padding: 5px 8px; max-width: min(420px, 70vw); }
 .tips { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
 .tip { border-top: 1px solid var(--hairline); padding-top: 12px; display: grid; gap: 6px; align-content: start; min-width: 0; }
 .tip-kind { margin: 0; font-size: var(--step--1); font-weight: 600; color: var(--ash); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -349,9 +353,17 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div class="seg" role="group" aria-label="Period shown" id="tl-view"></div>
     </div>
     <div>
-      <p class="chart-note">One lane for each AI. A bar is 15 minutes of work, taller when it made more calls: solid while building, paler while reviewing another's work. Faint bands mark the times two or more were at work at once. The top rail has a line for each task, with a block for each stretch of work on it, striped by who did it. Point at a task, or tap it, to light up its calls. Drag the slider, or pinch and scroll, to zoom in to a day.</p>
-      <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Timeline of Sable work by Claude Code, Codex and Antigravity over the last 30 days"></div>
+      <p class="chart-note">Each bar is one AI session, split wherever it sat idle for over half an hour. Sessions that ran at the same time stack up, so the height of the pile is how many were going at once. Paler bars are reviewing another's work. Diamonds mark each commit that landed on main. Point at a bar for details, or click one to see its task's relay below. Drag the slider, or pinch and scroll, to zoom.</p>
+      <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Every Claude Code, Codex and Antigravity session on Sable over the last 30 days, with merges to main"></div>
       <ul class="legend" id="tl-legend" style="margin-top: 10px"></ul>
+    </div>
+    <div class="relay" id="relay">
+      <div class="relay-head">
+        <p class="chart-title" id="relay-title">Relay</p>
+        <label class="relay-pick"><span>Task</span> <select id="relay-pick"></select></label>
+      </div>
+      <p class="chart-note" id="relay-note"></p>
+      <div class="chart" id="chart-relay" style="height: 190px" role="img" aria-label="Relay of one task: which AI built, reviewed and fixed it, and when it merged to main"></div>
     </div>
   </section>
 
@@ -1920,99 +1932,23 @@ details.numbers[open] summary { margin-bottom: 10px; }
   }
 
   // ---------------------------------------------------------------- who worked when (Sable timeline)
-  // One lane per tool, in 15-minute slots, with a band wherever two or more tools were at work and a rail
-  // of tasks on top. Built from the waveform, Sable calls only.
   function timeline(D) {
+    // Every AI session is a bar, split where it sat idle for over half an hour, and stacked so sessions that
+    // ran together sit side by side. Diamonds mark commits landing on main. A click opens that task's relay.
     const W = D.wave;
-    const pi = W.fields.indexOf('project');
-    const sable = pi < 0 ? -1 : (W.projects || []).indexOf('Sable');
-    const calls = pi < 0 ? W.rows : W.rows.filter((r) => r[pi] === sable);
+    const col = (name) => W.fields.indexOf(name);
+    const iT = col('t'), iTool = col('tool'), iRole = col('role'), iTask = col('task'), iProj = col('project'), iSess = col('session');
+    const sable = iProj < 0 ? -1 : (W.projects || []).indexOf('Sable');
+    const calls = iProj < 0 ? W.rows : W.rows.filter((r) => r[iProj] === sable);
     if (!calls.length) return null;
-    const SLOT = 900;
+    const IDLE = 1800;
     const TOOLS = [
-      { name: 'Antigravity', color: GROUP.agy.color },
-      { name: 'Codex', color: GROUP.codex.color },
       { name: 'Claude Code', color: GROUP['claude-opus-5-5'].color },
+      { name: 'Codex', color: GROUP.codex.color },
+      { name: 'Antigravity', color: GROUP.agy.color },
     ];
-    const lane = [2, 1, 0]; // waveform tool code -> lane, so Claude Code sits on top
-    const isReview = (r) => r[7] >= 2;
-
-    // slots[lane]: slot start -> what that tool did in those 15 minutes
-    const slots = TOOLS.map(() => new Map());
-    const tasks = new Map();
-    for (const r of calls) {
-      const l = lane[r[2]];
-      const s = Math.floor(r[0] / SLOT) * SLOT;
-      let c = slots[l].get(s);
-      if (!c) slots[l].set(s, c = { build: 0, review: 0, models: new Map(), tasks: new Map() });
-      c[isReview(r) ? 'review' : 'build'] += 1;
-      c.models.set(r[1], (c.models.get(r[1]) || 0) + 1);
-      if (r[8] >= 0) {
-        c.tasks.set(r[8], (c.tasks.get(r[8]) || 0) + 1);
-        let t = tasks.get(r[8]);
-        if (!t) tasks.set(r[8], t = { id: r[8], name: W.tasks[r[8]], from: r[0], to: r[0], by: [0, 0, 0], review: [0, 0, 0], n: 0, runs: [] });
-        // runs: stretches of work on the task with no gap over three hours
-        const run = t.runs[t.runs.length - 1];
-        if (run && r[0] - run[1] <= 3 * 3600) run[1] = r[0]; else t.runs.push([r[0], r[0]]);
-        t.to = r[0];
-        t.by[l] += 1;
-        t.review[l] += isReview(r) ? 1 : 0;
-        t.n += 1;
-      }
-    }
-    const maxN = Math.max(...slots.map((m) => Math.max(0, ...[...m.values()].map((c) => c.build + c.review))));
-
-    // Bands: runs of slots where two or more tools were at work.
-    const active = new Map();
-    slots.forEach((m) => m.forEach((_, s) => active.set(s, (active.get(s) || 0) + 1)));
-    const shared = [...active].filter(([, n]) => n > 1).map(([s]) => s).sort((a, b) => a - b);
-    const bands = [];
-    for (const s of shared) {
-      const last = bands[bands.length - 1];
-      if (last && last[1] === s) last[1] = s + SLOT; else bands.push([s, s + SLOT]);
-    }
-
-    // Task rail: each task from its first call to its last, packed into as few rows as fit.
-    const t0 = calls[0][0], t1 = calls[calls.length - 1][0];
-    const gap = (t1 - t0) / 90;
+    const FG = '#efe9dc', LINE = '#35312b', ASH = '#a8a294', BG = '#131110';
     const info = new Map(D.tasks.map((t) => [t.task, t]));
-    const rail = [...tasks.values()].sort((a, b) => a.from - b.from);
-    const rowEnds = [];
-    for (const t of rail) {
-      let row = rowEnds.findIndex((end) => end + gap < t.from);
-      if (row < 0) row = rowEnds.length;
-      rowEnds[row] = Math.max(t.to, t.from + gap);
-      t.row = row;
-    }
-    const RAIL_ROWS = Math.max(1, rowEnds.length);
-    // The rail takes at most the height of about one lane, however many rows it needs.
-    const ROW_H = Math.min(0.3, 1.2 / RAIL_ROWS), RAIL_BASE = 3.2, TOP = RAIL_BASE + RAIL_ROWS * ROW_H;
-
-    // The note: how much of the work was shared.
-    const hours = new Map();
-    for (const r of calls) {
-      const h = Math.floor(r[0] / 3600);
-      hours.set(h, (hours.get(h) || 0) | (1 << r[2]));
-    }
-    const sharedHours = [...hours.values()].filter((v) => v & (v - 1)).length;
-    const per = TOOLS.map((_, l) => {
-      let build = 0, review = 0;
-      slots[l].forEach((c) => { build += c.build; review += c.review; });
-      return { build, review, n: build + review };
-    });
-    const describe = (l) => {
-      const p = per[l];
-      if (!p.n) return null;
-      return TOOLS[l].name + ' made ' + F.int(p.n) + ' calls' + (p.review ? ', ' + F.pct(p.review / p.n) + ' of them reviews' : '');
-    };
-    $('#tl-note').textContent = 'Sable work from ' + F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1)) + '. In ' + sharedHours + ' of the '
-      + hours.size + ' hours with any activity, two or more AIs were at work. ' + [2, 1, 0].map(describe).filter(Boolean).join('. ') + '.';
-    $('#tl-legend').replaceChildren(
-      ...[2, 1, 0].filter((l) => per[l].n).map((l) => { const li = el('li'); li.append(swatch(TOOLS[l].color), TOOLS[l].name); return li; }),
-      (() => { const li = el('li'); const s = swatch(T.ash); s.style.opacity = 0.4; li.append(s, 'Paler: reviewing'); return li; })(),
-      (() => { const li = el('li'); const s = swatch('rgba(239,233,220,0.22)'); li.append(s, 'Band: two or more at once'); return li; })()
-    );
-
     const ms = (s) => s * 1000;
     const clock = (s) => new Date(ms(s)).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const dayOf = (s) => F.dayLong(isoDay(s));
@@ -2020,152 +1956,330 @@ details.numbers[open] summary { margin-bottom: 10px; }
       const m = Math.round(s / 60);
       return m < 60 ? Math.max(1, m) + ' min' : m < 2880 ? (Math.round(m / 6) / 10) + ' hours' : Math.round(m / 1440) + ' days';
     };
-    const top = (map, name, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => name(k));
     const sub = (html) => '<div style="color:#a8a294;margin-top:4px;max-width:280px;white-space:normal">' + html + '</div>';
-
-    let lit = null;     // the task whose calls are lit up
-    let pinned = false; // lit by a click, so it stays until the next click
-    const litCalls = () => (lit == null ? [] : calls.filter((r) => r[8] === lit).map((r) => [ms(r[0]), lane[r[2]]]));
-
-    const chart = make('chart-timeline');
+    const titleOf = (k) => {
+      const name = W.tasks[k], t = info.get(name);
+      return t && t.title && t.title !== name ? t.title : null;
+    };
     const narrow = window.innerWidth < 640;
-    const slotData = (l) => [...slots[l]].map(([s, c]) => ({ value: [ms(s), ms(s + SLOT), l, c.build, c.review], c }));
-    const laneSeries = (l) => ({
-      type: 'custom', id: 'lane' + l, name: TOOLS[l].name, data: slotData(l), encode: { x: [0, 1] }, clip: true,
-      renderItem: (params, api) => {
-        const a = api.coord([api.value(0), l]), b = api.coord([api.value(1), l + 1]);
-        const w = Math.max(1.5, b[0] - a[0] - (b[0] - a[0] > 6 ? 1 : 0));
-        const full = (a[1] - b[1]) * 0.86;
-        const build = api.value(3), review = api.value(4);
-        const h = Math.max(3, full * Math.sqrt((build + review) / maxN));
-        const hb = build + review ? h * build / (build + review) : 0;
-        const fade = lit == null ? 1 : 0.3;
-        const kids = [];
-        if (hb > 0) kids.push({ type: 'rect', shape: { x: a[0], y: a[1] - hb, width: w, height: hb }, style: { fill: TOOLS[l].color, opacity: fade } });
-        if (h - hb > 0) kids.push({ type: 'rect', shape: { x: a[0], y: a[1] - h, width: w, height: h - hb }, style: { fill: TOOLS[l].color, opacity: 0.4 * fade } });
-        return { type: 'group', children: kids };
-      },
-    });
 
+    // A session's calls with no gap over IDLE make one stretch. Without session ids, tool and task stand in.
+    function stretches(rows) {
+      const open = new Map(), out = [];
+      for (const r of rows) {
+        const key = r[iTool] + ':' + (iSess >= 0 && r[iSess] >= 0 ? 's' + r[iSess] : 't' + r[iTask]);
+        let s = open.get(key);
+        if (!s || r[iT] - s.to > IDLE) {
+          s = { tool: r[iTool], from: r[iT], to: r[iT], n: 0, review: 0, tasks: new Map() };
+          open.set(key, s);
+          out.push(s);
+        }
+        s.to = r[iT];
+        s.n += 1;
+        s.review += r[iRole] >= 2 ? 1 : 0;
+        if (r[iTask] >= 0) s.tasks.set(r[iTask], (s.tasks.get(r[iTask]) || 0) + 1);
+      }
+      for (const s of out) {
+        s.task = s.tasks.size ? [...s.tasks].sort((a, b) => b[1] - a[1])[0][0] : -1;
+        s.reviewing = s.review * 2 > s.n;
+        s.end = Math.max(s.to, s.from + 120); // a lone call still gets two minutes' width
+      }
+      return out.sort((a, b) => a.from - b.from);
+    }
+
+    const all = stretches(calls);
+    const rowEnd = [];
+    for (const s of all) {
+      let row = rowEnd.findIndex((e) => e + 600 < s.from);
+      if (row < 0) row = rowEnd.length;
+      rowEnd[row] = s.end;
+      s.row = row;
+    }
+    const ROWS = Math.max(1, rowEnd.length);
+    const t0 = calls[0][iT], t1 = calls[calls.length - 1][iT];
+    const merges = (W.merges || []).filter((m) => m[0] >= t0 - 86400 && m[0] <= t1 + 86400);
+
+    // The note: how much of the work overlapped.
+    const hours = new Map();
+    for (const r of calls) {
+      const h = Math.floor(r[iT] / 3600);
+      hours.set(h, (hours.get(h) || 0) | (1 << r[iTool]));
+    }
+    const sharedHours = [...hours.values()].filter((v) => v & (v - 1)).length;
+    const perTool = TOOLS.map((_, i) => all.filter((s) => s.tool === i).length);
+    $('#tl-note').textContent = 'Sable work from ' + F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1)) + ': '
+      + listed(TOOLS.map((t, i) => perTool[i] ? F.int(perTool[i]) + ' ' + t.name + ' sessions' : null).filter(Boolean))
+      + (merges.length ? ', and ' + merges.length + ' commits landing on main' : '') + '. In ' + sharedHours + ' of the '
+      + hours.size + ' hours with any activity, two or more AIs were at work.';
+    const diamond = () => {
+      const s = swatch(FG);
+      s.style.transform = 'rotate(45deg) scale(0.8)';
+      return s;
+    };
+    $('#tl-legend').replaceChildren(
+      ...TOOLS.filter((_, i) => perTool[i]).map((t) => { const li = el('li'); li.append(swatch(t.color), t.name); return li; }),
+      (() => { const li = el('li'); const s = swatch(ASH); s.style.opacity = 0.45; li.append(s, 'Paler: reviewing'); return li; })(),
+      (() => { const li = el('li'); li.append(diamond(), 'Merged to main'); return li; })()
+    );
+
+    // ---- the session chart
+    const node = $('#chart-timeline');
+    const ROW_PX = narrow ? 20 : 22;
+    node.style.height = (36 + ROWS * ROW_PX + 84) + 'px';
+    const chart = make('chart-timeline');
+    let lit = null;
+    const fits = (w, text) => w > text.length * 6.3 + 12;
+    const barLabel = (s) => (s.task >= 0 ? W.tasks[s.task].replace(/^Branch /, '') : s.reviewing ? 'Review' : 'Other work');
+    const barData = () => all.map((s) => ({ value: [ms(s.from), ms(s.end), s.row], s }));
+    const mergeData = () => merges.map((m) => ({ value: [ms(m[0])], m }));
+    const mergeItem = (api, top, bottom, x) => [
+      { type: 'line', silent: true, shape: { x1: x, y1: top, x2: x, y2: bottom }, style: { stroke: FG, opacity: 0.28, lineWidth: 1 } },
+      { type: 'polygon', shape: { points: [[x, top - 6], [x + 5, top - 1], [x, top + 4], [x - 5, top - 1]] }, style: { fill: FG } },
+    ];
     chart.setOption(Object.assign(base(), {
       animation: false,
-      grid: { left: 8, right: 8, top: 8, bottom: 84 },
+      grid: { left: 8, right: 8, top: 20, bottom: 84 },
       tooltip: Object.assign({}, TIP, {
         trigger: 'item',
         formatter: (p) => {
-          if (p.seriesId === 'rail') {
-            const t = p.data.t, i = info.get(t.name);
-            const who = [2, 1, 0].filter((l) => t.by[l]).map((l) => TOOLS[l].name + ' ' + F.int(t.by[l])
-              + (t.review[l] === t.by[l] ? ' (review)' : t.review[l] ? ' (' + t.review[l] + ' review)' : ''));
-            return '<div style="max-width:280px;white-space:normal"><b>' + esc(t.name) + '</b>' + (i && i.title !== t.name ? ' ' + esc(i.title) : '') + '</div>'
-              + sub(dayOf(t.from) + ' ' + clock(t.from) + ', over ' + span(t.to - t.from)) + sub('Calls: ' + who.join(', '));
+          if (p.seriesId === 'merges') {
+            const m = p.data.m;
+            return '<b>Merged to main</b> ' + dayOf(m[0]) + ', ' + clock(m[0])
+              + '<div style="max-width:280px;white-space:normal;margin-top:4px">' + esc(m[2]) + '</div>' + sub(esc(m[1]));
           }
-          const c = p.data.c;
-          if (!c) return '';
-          const s = p.value[0] / 1000, n = c.build + c.review;
-          const what = c.review === n ? 'reviewing' : c.review ? c.build + ' building, ' + c.review + ' reviewing' : 'building';
-          const on = top(c.tasks, (k) => esc(W.tasks[k]), 3);
-          return '<b>' + p.seriesName + '</b> ' + dayOf(s) + ', ' + clock(s) + ' to ' + clock(s + SLOT)
-            + sub(n + (n === 1 ? ' call, ' : ' calls, ') + what) + sub(top(c.models, (k) => modelName(W.models[k]), 3).join(', '))
-            + (on.length ? sub('On ' + on.join(', ')) : '');
+          const s = p.data && p.data.s;
+          if (!s) return '';
+          const what = s.review === s.n ? 'reviewing' : s.review ? (s.n - s.review) + ' building, ' + s.review + ' reviewing' : 'building';
+          const head = s.task >= 0 ? '<b>' + esc(W.tasks[s.task]) + '</b>' + (titleOf(s.task) ? ' ' + esc(titleOf(s.task)) : '') : '<b>Not tied to a feature</b>';
+          return '<div style="max-width:280px;white-space:normal">' + head + '</div>'
+            + sub(TOOLS[s.tool].name + ', ' + dayOf(s.from) + ' ' + clock(s.from) + ' to ' + clock(s.to) + ' (' + span(s.to - s.from) + ')')
+            + sub(s.n + (s.n === 1 ? ' call, ' : ' calls, ') + what)
+            + (s.task >= 0 ? sub('Click to see its relay below') : '');
         },
       }),
       xAxis: {
-        type: 'time', min: ms(t0 - 3600), max: ms(t1 + 3600), axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false },
+        type: 'time', min: ms(t0 - 3600), max: ms(t1 + 3600), axisLine: { lineStyle: { color: LINE } }, axisTick: { show: false },
         axisLabel: Object.assign({}, AXIS_LABEL, { hideOverlap: true }), splitLine: { show: false },
       },
-      yAxis: { type: 'value', min: 0, max: TOP, show: false },
+      yAxis: { type: 'value', inverse: true, min: -0.6, max: ROWS, show: false },
       dataZoom: [
-        { type: 'inside', filterMode: 'none', minValueSpan: 3 * 3600e3 },
-        { type: 'slider', filterMode: 'none', height: 26, bottom: 16, minValueSpan: 3 * 3600e3, borderColor: '#35312b', backgroundColor: 'transparent',
-          fillerColor: 'rgba(239,233,220,0.08)', handleStyle: { color: '#a8a294', borderColor: '#a8a294' }, moveHandleStyle: { color: '#35312b' },
+        { type: 'inside', filterMode: 'none', minValueSpan: 2 * 3600e3 },
+        { type: 'slider', filterMode: 'none', height: 26, bottom: 16, minValueSpan: 2 * 3600e3, borderColor: LINE, backgroundColor: 'transparent',
+          fillerColor: 'rgba(239,233,220,0.08)', handleStyle: { color: ASH, borderColor: ASH }, moveHandleStyle: { color: LINE },
           dataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } }, selectedDataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } },
           textStyle: { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11 }, labelFormatter: (v) => F.day(isoDay(v / 1000)) },
       ],
       series: [
         {
-          type: 'custom', id: 'bands', silent: true, data: bands.map(([a, b]) => [ms(a), ms(b)]), encode: { x: [0, 1] }, clip: true, z: 1,
+          type: 'custom', id: 'merges', data: mergeData(), encode: { x: 0 }, clip: true, z: 3,
           renderItem: (params, api) => {
-            const a = api.coord([api.value(0), 0]), b = api.coord([api.value(1), 3]);
-            return { type: 'rect', shape: { x: a[0], y: b[1], width: Math.max(1.5, b[0] - a[0]), height: a[1] - b[1] }, style: { fill: 'rgba(239,233,220,0.1)' } };
+            const x = api.coord([api.value(0), 0])[0];
+            return { type: 'group', children: mergeItem(api, api.coord([0, -0.3])[1], api.coord([0, ROWS])[1], x) };
           },
         },
         {
-          // lane names and the lines between lanes, pinned to the left edge whatever the zoom
-          type: 'custom', id: 'names', silent: true, data: [0, 1, 2, 3], z: 6,
+          type: 'custom', id: 'sessions', data: barData(), encode: { x: [0, 1] }, clip: true, z: 4,
           renderItem: (params, api) => {
-            const g = params.coordSys, i = api.value(0);
-            const y = api.coord([0, i])[1];
-            const kids = [{ type: 'line', shape: { x1: g.x, y1: y, x2: g.x + g.width, y2: y }, style: { stroke: '#35312b', lineWidth: 1 } }];
-            const name = i < 3 ? TOOLS[i].name : 'Tasks';
-            const yText = i < 3 ? api.coord([0, i + 1])[1] + 6 : g.y + 2;
-            kids.push({ type: 'text', x: g.x + 4, y: yText, style: { text: name, fill: '#a8a294', font: '600 11px Archivo, sans-serif', stroke: '#131110', lineWidth: 3 } });
-            return { type: 'group', children: kids };
-          },
-        },
-        laneSeries(0), laneSeries(1), laneSeries(2),
-        {
-          type: 'custom', id: 'rail', name: 'Tasks', data: rail.map((t) => ({ value: [ms(t.from), ms(t.to), t.row], t })), encode: { x: [0, 1] }, clip: true, z: 4,
-          renderItem: (params, api) => {
-            const t = rail[params.dataIndex];
-            const a = api.coord([api.value(0), RAIL_BASE + (RAIL_ROWS - 1 - t.row) * ROW_H]);
-            const b = api.coord([api.value(1), RAIL_BASE + (RAIL_ROWS - t.row) * ROW_H]);
-            const w = Math.max(5, b[0] - a[0]), h = Math.max(4, (a[1] - b[1]) * 0.7), y0 = b[1] + (a[1] - b[1] - h) / 2;
-            const fade = lit == null || lit === t.id ? 1 : 0.3;
-            // a thin line across the whole task, and a block for each stretch of work on it
-            const kids = [{ type: 'rect', shape: { x: a[0], y: y0 + h / 2 - 0.5, width: w, height: 1 }, style: { fill: '#8d877b', opacity: fade } }];
-            for (const run of t.runs) {
-              const x0 = api.coord([ms(run[0]), 0])[0], x1 = api.coord([ms(run[1]), 0])[0];
-              let y = y0;
-              // stripes: each tool's share of the task's calls, Claude Code on top
-              for (const l of [2, 1, 0]) {
-                if (!t.by[l]) continue;
-                const hh = h * t.by[l] / t.n;
-                kids.push({ type: 'rect', shape: { x: x0, y, width: Math.max(4, x1 - x0), height: hh }, style: { fill: TOOLS[l].color, opacity: fade } });
-                y += hh;
-              }
+            const s = all[params.dataIndex];
+            const a = api.coord([api.value(0), s.row + 0.14]), b = api.coord([api.value(1), s.row + 0.86]);
+            const w = Math.max(3, b[0] - a[0]), h = Math.abs(b[1] - a[1]), y = Math.min(a[1], b[1]);
+            const fade = 1;
+            const kids = [{ type: 'rect', shape: { x: a[0], y, width: w, height: h, r: 2 },
+              style: { fill: TOOLS[s.tool].color, opacity: (s.reviewing ? 0.45 : 1) * fade,
+                stroke: lit != null && s.task === lit ? FG : null, lineWidth: 1.5 } }];
+            const text = barLabel(s);
+            if (fits(w, text)) {
+              kids.push({ type: 'text', silent: true, x: a[0] + 6, y: y + h / 2, style: { text, fill: '#ffffff', opacity: fade,
+                font: '500 11px Archivo, sans-serif', verticalAlign: 'middle' } });
             }
-            if (lit === t.id) kids.push({ type: 'rect', shape: { x: a[0] - 1.5, y: y0 - 1.5, width: w + 3, height: h + 3 }, style: { fill: 'none', stroke: '#efe9dc', lineWidth: 1.5 } });
             return { type: 'group', children: kids };
-          },
-        },
-        {
-          // the lit task's calls, one tick each in its tool's lane
-          type: 'custom', id: 'lit', silent: true, data: [], clip: true, z: 5,
-          renderItem: (params, api) => {
-            const l = api.value(1);
-            const a = api.coord([api.value(0), l]), b = api.coord([api.value(0), l + 1]);
-            return { type: 'rect', shape: { x: a[0] - 0.75, y: b[1] + (a[1] - b[1]) * 0.14, width: 1.5, height: (a[1] - b[1]) * 0.86 }, style: { fill: TOOLS[l].color } };
           },
         },
       ],
     }));
 
-    const light = (id) => {
-      if (lit === id) return;
-      lit = id;
-      // the same data again, so the lanes and rail redraw faded around the lit task
-      chart.setOption({ series: [{ id: 'lit', data: litCalls() }, { id: 'rail', data: rail.map((t) => ({ value: [ms(t.from), ms(t.to), t.row], t })) },
-        ...[0, 1, 2].map((l) => ({ id: 'lane' + l, data: slotData(l) }))] });
+    // ---- the relay for one task
+    const relay = make('chart-relay');
+    const tasksSeen = new Map();
+    for (const s of all) for (const [k] of s.tasks) tasksSeen.set(k, Math.max(tasksSeen.get(k) || 0, s.to));
+    const pick = $('#relay-pick');
+    const order = [...tasksSeen].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+    pick.replaceChildren(...order.map((k) => {
+      const o = el('option', null, W.tasks[k] + (titleOf(k) ? ': ' + titleOf(k) : ''));
+      o.value = k;
+      return o;
+    }));
+    const mergesOf = (k) => {
+      const name = W.tasks[k];
+      const pr = name.match(/^PR #(\d+)$/);
+      const sha = name.match(/^Commit (\w+)$/);
+      const found = pr ? merges.filter((m) => m[3] === +pr[1])
+        : sha ? merges.filter((m) => m[1].startsWith(sha[1]) || sha[1].startsWith(m[1])) : [];
+      // A PR merged into another branch never lands on main under its own number: use the PR's merge time.
+      const t = info.get(name);
+      if (pr && !found.length && t && t.shipped_at) return [[Math.round(Date.parse(t.shipped_at) / 1000), '', t.title, +pr[1], 'pr']];
+      return found;
     };
-    chart.on('mouseover', { seriesId: 'rail' }, (p) => { if (!pinned) light(p.data.t.id); });
-    chart.on('mouseout', { seriesId: 'rail' }, () => { if (!pinned) light(null); });
-    chart.on('click', { seriesId: 'rail' }, (p) => {
-      const same = pinned && lit === p.data.t.id;
-      pinned = !same;
-      light(same ? null : p.data.t.id);
-    });
-    chart.getZr().on('click', (e) => { if (!e.target && pinned) { pinned = false; light(null); } });
 
-    // Views: the whole month, or the day with the most shared work.
-    const byDay = new Map();
-    for (const s of shared) byDay.set(isoDay(s), (byDay.get(isoDay(s)) || 0) + 1);
-    const busiest = [...byDay].sort((a, b) => b[1] - a[1])[0];
+    function showRelay(k) {
+      const ms_ = mergesOf(k);
+      const every = stretches(calls.filter((r) => r[iTask] === k));
+      // The relay runs up to the merge; calls booked to the task after it are counted, not drawn.
+      const cutoff = ms_.length ? ms_[ms_.length - 1][0] + 3600 : Infinity;
+      const parts = every.filter((p) => p.from <= cutoff);
+      const later = sum(every.filter((p) => p.from > cutoff).map((p) => p.n));
+      if (!parts.length) return;
+      let reviewed = false;
+      for (const p of parts) {
+        p.label = p.reviewing ? 'Reviews' : reviewed ? 'Fixes' : 'Builds';
+        if (p.reviewing) reviewed = true;
+      }
+      const lo = parts[0].from, hi = Math.max(...parts.map((p) => p.end), ...ms_.map((m) => m[0]));
+      const padT = Math.max(600, (hi - lo) * 0.05);
+      const lanes = TOOLS.map((_, i) => i).filter((i) => parts.some((p) => p.tool === i));
+      const laneOf = (tool) => lanes.indexOf(tool);
+      pick.value = String(k);
+      $('#relay-title').textContent = 'Relay: ' + W.tasks[k] + (titleOf(k) ? ', ' + titleOf(k) : '');
+      const who = lanes.map((i) => {
+        const ps = parts.filter((p) => p.tool === i);
+        const n = sum(ps.map((p) => p.n)), rev = sum(ps.map((p) => p.review));
+        const verb = rev === n ? 'reviewed' : rev ? 'built and reviewed' : 'built';
+        return TOOLS[i].name + ' ' + verb + ' in ' + ps.length + (ps.length === 1 ? ' stretch' : ' stretches') + ' (' + F.int(n) + ' calls)';
+      });
+      const last = ms_[ms_.length - 1];
+      const merged = !last ? ' It has no merge in these 30 days.'
+        : (last[4] === 'pr' ? ' Its PR merged into another branch on ' : ' It merged to main on ') + dayOf(last[0]) + ' at ' + clock(last[0]) + '.';
+      $('#relay-note').textContent = who.join('. ') + '.' + merged
+        + (later ? ' ' + F.int(later) + ' later calls booked to it after the merge are left out.' : '')
+        + ' Arrows mark each hand-off from one AI to another.';
+      $('#chart-relay').style.height = (lanes.length * 46 + 56) + 'px';
+      relay.resize();
+
+      const hand = [];
+      for (let i = 1; i < parts.length; i += 1) {
+        const prev = parts.slice(0, i).reverse().find((p) => p.tool !== parts[i].tool);
+        if (prev && parts[i - 1].tool !== parts[i].tool) hand.push([prev, parts[i]]);
+      }
+      relay.setOption(Object.assign(base(), {
+        animation: false,
+        grid: { left: narrow ? 8 : 104, right: narrow ? 70 : 110, top: 14, bottom: 34 },
+        tooltip: Object.assign({}, TIP, {
+          trigger: 'item',
+          formatter: (p) => {
+            if (p.seriesId === 'r-merge') return '<b>' + (p.data.m[4] === 'pr' ? 'PR merged' : 'Merged to main') + '</b> ' + dayOf(p.data.m[0]) + ', ' + clock(p.data.m[0])
+              + '<div style="max-width:280px;white-space:normal;margin-top:4px">' + esc(p.data.m[2]) + '</div>';
+            const s = p.data && p.data.s;
+            if (!s) return '';
+            return '<b>' + TOOLS[s.tool].name + '</b> ' + s.label.toLowerCase() + sub(dayOf(s.from) + ' ' + clock(s.from) + ' to ' + clock(s.to)
+              + ' (' + span(s.to - s.from) + ')') + sub(s.n + (s.n === 1 ? ' call' : ' calls'));
+          },
+        }),
+        xAxis: {
+          type: 'time', min: ms(lo - padT), max: ms(hi + padT), axisLine: { lineStyle: { color: LINE } }, axisTick: { show: false },
+          axisLabel: Object.assign({}, AXIS_LABEL, { hideOverlap: true }), splitLine: { show: true, lineStyle: { color: LINE, opacity: 0.6 } },
+        },
+        yAxis: { type: 'value', inverse: true, min: 0, max: lanes.length, show: false },
+        dataZoom: [{ type: 'inside', filterMode: 'none', minValueSpan: 1800e3 }],
+        series: [
+          {
+            type: 'custom', id: 'r-lanes', silent: true, data: lanes.map((_, i) => [i]), z: 1,
+            renderItem: (params, api) => {
+              const g = params.coordSys, i = api.value(0);
+              const yTop = api.coord([0, i])[1], yMid = api.coord([0, i + 0.5])[1];
+              const kids = [{ type: 'line', shape: { x1: g.x, y1: yTop, x2: g.x + g.width, y2: yTop }, style: { stroke: LINE } }];
+              const name = TOOLS[lanes[i]].name;
+              kids.push(narrow
+                ? { type: 'text', x: g.x + 2, y: yTop + 3, style: { text: name, fill: ASH, font: '600 11px Archivo, sans-serif' } }
+                : { type: 'text', x: g.x - 12, y: yMid, style: { text: name, fill: FG, font: '500 12px Archivo, sans-serif', align: 'right', verticalAlign: 'middle' } });
+              return { type: 'group', children: kids };
+            },
+          },
+          {
+            type: 'custom', id: 'r-bars', data: parts.map((s) => ({ value: [ms(s.from), ms(s.end), laneOf(s.tool)], s })), encode: { x: [0, 1] }, clip: true, z: 3,
+            renderItem: (params, api) => {
+              const s = parts[params.dataIndex], lane = laneOf(s.tool);
+              const top = narrow ? 0.38 : 0.24, bot = narrow ? 0.86 : 0.76;
+              const a = api.coord([api.value(0), lane + top]), b = api.coord([api.value(1), lane + bot]);
+              const w = Math.max(4, b[0] - a[0]), h = b[1] - a[1];
+              const kids = [{ type: 'rect', shape: { x: a[0], y: a[1], width: w, height: h, r: 3 },
+                style: { fill: TOOLS[s.tool].color, opacity: s.reviewing ? 0.45 : 1 } }];
+              if (fits(w, s.label)) kids.push({ type: 'text', silent: true, x: a[0] + 7, y: a[1] + h / 2,
+                style: { text: s.label, fill: '#ffffff', font: '500 11px Archivo, sans-serif', verticalAlign: 'middle' } });
+              else kids.push({ type: 'text', silent: true, x: a[0] + w + 6, y: a[1] + h / 2,
+                style: { text: s.label, fill: FG, font: '500 11px Archivo, sans-serif', verticalAlign: 'middle' } });
+              return { type: 'group', children: kids };
+            },
+          },
+          {
+            // hand-offs: from the end of one AI's stretch to the start of the next AI's
+            type: 'custom', id: 'r-hand', silent: true, data: hand.map((_, i) => [i]), clip: true, z: 4,
+            renderItem: (params, api) => {
+              const [a, b] = hand[api.value(0)];
+              const la = laneOf(a.tool), lb = laneOf(b.tool), down = lb > la;
+              const xb = api.coord([ms(b.from), 0])[0] + 4;
+              const xa = Math.min(api.coord([ms(a.end), 0])[0], xb);
+              const ya = api.coord([0, la + (down ? 0.76 : 0.24)])[1];
+              const yb = api.coord([0, lb + (down ? 0.24 : 0.76)])[1] + (down ? -2 : 2);
+              const yaMid = api.coord([0, la + 0.5])[1];
+              const pts = xa < xb - 6 ? [[xa, yaMid], [xb, yaMid], [xb, yb]] : [[xb, ya], [xb, yb]];
+              const tip = down ? [[xb - 4, yb - 6], [xb + 4, yb - 6], [xb, yb]] : [[xb - 4, yb + 6], [xb + 4, yb + 6], [xb, yb]];
+              return { type: 'group', children: [
+                { type: 'polyline', shape: { points: pts }, style: { stroke: FG, lineWidth: 1.4, fill: null } },
+                { type: 'polygon', shape: { points: tip }, style: { fill: FG } },
+              ] };
+            },
+          },
+          {
+            type: 'custom', id: 'r-merge', data: ms_.map((m) => ({ value: [ms(m[0])], m })), encode: { x: 0 }, clip: false, z: 5,
+            renderItem: (params, api) => {
+              const m = ms_[params.dataIndex];
+              const x = api.coord([ms(m[0]), 0])[0];
+              const top = api.coord([0, 0])[1], bottom = api.coord([0, lanes.length])[1];
+              return { type: 'group', children: [
+                { type: 'line', silent: true, shape: { x1: x, y1: top, x2: x, y2: bottom }, style: { stroke: FG, opacity: 0.5, lineDash: [3, 3] } },
+                { type: 'polygon', shape: { points: [[x, top - 6], [x + 6, top], [x, top + 6], [x - 6, top]] }, style: { fill: FG, stroke: BG, lineWidth: 1.5 } },
+                { type: 'text', silent: true, x: x + 10, y: top, style: { text: (m[4] === 'pr' ? 'PR merged ' : 'Merged ') + clock(m[0]), fill: FG,
+                  font: '500 11px Archivo, sans-serif', verticalAlign: 'middle' } },
+              ] };
+            },
+          },
+        ],
+      }), true);
+    }
+
+    const light = (k) => {
+      lit = k;
+      chart.setOption({ series: [{ id: 'sessions', data: barData() }] });
+    };
+    chart.on('click', { seriesId: 'sessions' }, (p) => {
+      const s = p.data.s;
+      if (s.task < 0) return;
+      light(s.task);
+      showRelay(s.task);
+      const box = $('#relay').getBoundingClientRect();
+      if (box.top > window.innerHeight - 120) $('#relay').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'nearest' });
+    });
+    pick.addEventListener('change', () => { light(+pick.value); showRelay(+pick.value); });
+
+    // Default relay: the latest task more than one AI worked on.
+    const multi = order.find((k) => new Set(all.filter((s) => s.tasks.has(k)).map((s) => s.tool)).size > 1);
+    const first = multi != null ? multi : order[0];
+    if (first != null) { lit = first; chart.setOption({ series: [{ id: 'sessions', data: barData() }] }); showRelay(first); }
+    else $('#relay').hidden = true;
+
+    // Views: the whole month, the day with the most overlap between AIs, or the latest day.
+    const overlap = new Map();
+    for (let i = 0; i < all.length; i += 1) {
+      for (let j = i + 1; j < all.length && all[j].from <= all[i].end; j += 1) {
+        if (all[j].tool !== all[i].tool) overlap.set(isoDay(all[j].from), (overlap.get(isoDay(all[j].from)) || 0) + Math.min(all[i].end, all[j].end) - all[j].from);
+      }
+    }
+    const busiest = [...overlap].sort((a, b) => b[1] - a[1])[0];
     const lastDay = isoDay(t1);
-    // A day's view runs from its first call to its last, with half an hour either side.
     const showDay = (d) => {
-      const ts = calls.filter((r) => isoDay(r[0]) === d).map((r) => r[0]);
-      chart.dispatchAction({ type: 'dataZoom', startValue: ms(ts[0] - 1800), endValue: ms(Math.max(ts[ts.length - 1], ts[0] + 3 * 3600) + 1800) });
+      const ss = all.filter((s) => isoDay(s.from) === d);
+      const a = Math.min(...ss.map((s) => s.from)), b = Math.max(...ss.map((s) => s.end));
+      chart.dispatchAction({ type: 'dataZoom', startValue: ms(a - 1800), endValue: ms(Math.max(b, a + 3 * 3600) + 1800) });
     };
     const views = {
       all: () => chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }),
@@ -2188,7 +2302,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
       ...(busiest && busiest[0] === lastDay ? [] : [btn('last', 'Latest day, ' + F.day(lastDay))]));
     $('#timeline').hidden = false;
     chart.resize();
-    return chart;
+    relay.resize();
+    return { resize: () => { chart.resize(); relay.resize(); } };
   }
 
   function tipsList(D) {

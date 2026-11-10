@@ -480,34 +480,46 @@ def rework_count(task_files, shipped, main_commits, own=(), days=14):
 ROLE_CODES = {'main': 0, 'agent': 0, 'subagent': 1, 'review': 2, 'auto-review': 3}
 
 
-def build_waveform(replies, codex_rows, since, agy_rows=()):
+def build_waveform(replies, codex_rows, since, agy_rows=(), main_commits=()):
     """Every Claude reply, Codex call and Antigravity call since `since`, oldest first, as compact rows:
     [unix time, model index, tool (0 Claude, 1 Codex, 2 Antigravity), context, output, cache written,
-    rebuild 0/1, role (0 main/agent, 1 subagent, 2 review, 3 auto-review), task index or -1, project index].
-    `projects` lists project names in first-seen order (a record with no project counts as 'Unknown');
-    the project index is the last element, so readers that only use elements 0-8 keep working.
+    rebuild 0/1, role (0 main/agent, 1 subagent, 2 review, 3 auto-review), task index or -1, project index,
+    session index or -1].
+    `projects` lists project names in first-seen order (a record with no project counts as 'Unknown').
+    `sessions` lists session id strings in first-seen order; sessions are keyed by (tool, id) so the same id
+    from two tools gets two entries, and a record with no session gets -1 and adds nothing.
+    `merges` lists every commit on main since `since`, oldest first, as [unix time, short sha, subject, PR number
+    or None], the PR being the last trailing '(#N)' in the subject. Readers that only use elements 0-8 keep working.
     Antigravity can run Claude models too, so the tool, not the model, says where a call came from."""
     calls = []
     for r in replies:
         if r['ts'] >= since:
             role = 'subagent' if r['sidechain'] else 'main'
-            calls.append((r['ts'], 0, r['model'], r['usage'], 1 if r.get('rebuild') else 0, role, r.get('task'), r.get('project')))
+            calls.append((r['ts'], 0, r['model'], r['usage'], 1 if r.get('rebuild') else 0, role, r.get('task'), r.get('project'), r.get('session')))
     for c in codex_rows:
         if c['ts'] >= since:
-            calls.append((c['ts'], 1, c['model'], c['usage'], 0, c['role'], c.get('task'), c.get('project')))
+            calls.append((c['ts'], 1, c['model'], c['usage'], 0, c['role'], c.get('task'), c.get('project'), c.get('session')))
     for a in agy_rows:
         if a['ts'] >= since:
-            calls.append((a['ts'], 2, a['model'], a['usage'], 0, a['role'], a.get('task'), a.get('project')))
+            calls.append((a['ts'], 2, a['model'], a['usage'], 0, a['role'], a.get('task'), a.get('project'), a.get('session')))
     calls.sort(key=lambda c: c[0])
-    models, tasks, projects, rows = {}, {}, {}, []
-    for ts, tool, model, u, rebuild, role, task, project in calls:
+    models, tasks, projects, sessions, rows = {}, {}, {}, {}, []
+    for ts, tool, model, u, rebuild, role, task, project, session in calls:
         m = models.setdefault(model, len(models))
         k = tasks.setdefault(task, len(tasks)) if task else -1
         p = projects.setdefault(project or 'Unknown', len(projects))
+        sx = sessions.setdefault((tool, session), len(sessions)) if session else -1
         rows.append([int(ts.timestamp()), m, tool, context(u), u['output'], u['cw5'] + u['cw1h'],
-                     rebuild, ROLE_CODES.get(role, 0), k, p])
-    return dict(fields=['t', 'model', 'tool', 'context', 'output', 'cache_write', 'rebuild', 'role', 'task', 'project'],
-                models=list(models), tasks=list(tasks), projects=list(projects), rows=rows)
+                     rebuild, ROLE_CODES.get(role, 0), k, p, sx])
+    merges = []
+    for c in sorted((c for c in main_commits if c['at'] >= since), key=lambda c: c['at']):
+        found = re.findall(r'\(#(\d+)\)', c['subject'] or '')
+        pr = int(found[-1]) if found and re.search(r'\(#\d+\)\s*$', c['subject']) else None
+        merges.append([int(c['at'].timestamp()), c['short'], c['subject'], pr])
+    return dict(fields=['t', 'model', 'tool', 'context', 'output', 'cache_write', 'rebuild', 'role', 'task', 'project',
+                        'session'],
+                models=list(models), tasks=list(tasks), projects=list(projects),
+                sessions=[sid for _, sid in sessions], merges=merges, rows=rows)
 
 
 # ---------------------------------------------------------------- loaders
@@ -978,7 +990,7 @@ def load_antigravity(saved_folders):
         else:
             stats['other'] += 1
         role = 'agent' if c['ide'] or c['id'] in interactive else 'review'
-        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'], project=project)
+        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'], project=project, session=c['id'])
                  for g in c['gens'] if g['ts']]
     return rows, folders, stats
 
@@ -1492,7 +1504,7 @@ def build():
         json.dump(agy_folders, f, indent=0, sort_keys=True)
     # The last 30 days: the window both Claude Code and Codex logs fully cover.
     since = replies[-1]['ts'] - timedelta(days=30)
-    waveform = build_waveform(replies, codex_rows, since, agy_rows)
+    waveform = build_waveform(replies, codex_rows, since, agy_rows, main_commits=main_commits)
     with open(os.path.join(OUT, 'waveform.json'), 'w') as f:
         json.dump(waveform, f, separators=(',', ':'))
     print('  out/waveform.json  %d calls since %s  %d KB' % (

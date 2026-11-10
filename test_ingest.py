@@ -291,9 +291,9 @@ class Waveform(unittest.TestCase):
         self.assertEqual(w['tasks'], ['PR #5'])
         self.assertEqual(len(w['rows']), 2)  # the August reply is outside the window
         codex_row, claude_row = w['rows']
-        # [time, model, tool, context, output, cache write, rebuild, role, task, project]
-        self.assertEqual(codex_row[1:], [0, 1, 116, 7, 15, 0, 2, -1, 0])
-        self.assertEqual(claude_row[1:], [1, 0, 116, 7, 15, 1, 0, 0, 0])
+        # [time, model, tool, context, output, cache write, rebuild, role, task, project, session]
+        self.assertEqual(codex_row[1:], [0, 1, 116, 7, 15, 0, 2, -1, 0, -1])
+        self.assertEqual(claude_row[1:], [1, 0, 116, 7, 15, 1, 0, 0, 0, -1])
 
     def test_adds_antigravity_calls_as_tool_2_in_time_order(self):
         u = dict(input=1, cw5=10, cw1h=5, cache_read=100, output=7, thinking=0)
@@ -313,11 +313,11 @@ class Waveform(unittest.TestCase):
         self.assertEqual([r[2] for r in w['rows']], [2, 0, 2, 1])
         self.assertEqual([r[0] for r in w['rows']], sorted(r[0] for r in w['rows']))
         agy_first, claude_row, agy_review, codex_row = w['rows']
-        # [time, model, tool, context, output, cache write, rebuild, role, task, project]
-        self.assertEqual(agy_first[1:], [0, 2, 100, 3, 0, 0, 0, -1, 0])
-        self.assertEqual(agy_review[1:], [1, 2, 100, 3, 0, 0, 2, -1, 0])
-        self.assertEqual(claude_row[1:], [0, 0, 116, 7, 15, 0, 1, 0, 0])
-        self.assertEqual(codex_row[1:], [2, 1, 116, 7, 15, 0, 2, 0, 0])
+        # [time, model, tool, context, output, cache write, rebuild, role, task, project, session]
+        self.assertEqual(agy_first[1:], [0, 2, 100, 3, 0, 0, 0, -1, 0, -1])
+        self.assertEqual(agy_review[1:], [1, 2, 100, 3, 0, 0, 2, -1, 0, -1])
+        self.assertEqual(claude_row[1:], [0, 0, 116, 7, 15, 0, 1, 0, 0, -1])
+        self.assertEqual(codex_row[1:], [2, 1, 116, 7, 15, 0, 2, 0, 0, -1])
 
     def test_antigravity_rows_are_optional(self):
         u = dict(input=1, cw5=0, cw1h=0, cache_read=0, output=1, thinking=0)
@@ -677,9 +677,72 @@ class WaveformProjects(unittest.TestCase):
             dict(ts=t('2026-10-02T13:00:00'), tool='Antigravity', model='m', role='agent', usage=u, project=None),
         ]
         w = ing.build_waveform(replies, codex, since=t('2026-09-21T00:00:00'), agy_rows=agy)
-        self.assertEqual(w['fields'][-1], 'project')
+        self.assertEqual(w['fields'][-2], 'project')
         self.assertEqual(w['projects'], ['Sable', 'ai-usage', 'Unknown'])
         # time order: Claude Sable, Codex ai-usage, Antigravity Sable, Antigravity none, Claude none
         self.assertEqual([r[2] for r in w['rows']], [0, 1, 2, 2, 0])
-        self.assertEqual([r[-1] for r in w['rows']], [0, 1, 0, 2, 2])
+        self.assertEqual([r[-2] for r in w['rows']], [0, 1, 0, 2, 2])
         self.assertTrue(all(len(r) == len(w['fields']) for r in w['rows']))
+
+
+class WaveformSessions(unittest.TestCase):
+    U = dict(input=1, cw5=0, cw1h=0, cache_read=0, output=1, thinking=0)
+
+    def build(self):
+        u = self.U
+        replies = [
+            dict(ts=t('2026-10-02T10:00:00'), model='m', usage=u, sidechain=False, session='s1'),
+            dict(ts=t('2026-10-02T14:00:00'), model='m', usage=u, sidechain=False),  # no session
+        ]
+        codex = [dict(ts=t('2026-10-02T11:00:00'), model='m', usage=u, role='main', session='s1')]
+        agy = [
+            dict(ts=t('2026-10-02T12:00:00'), tool='Antigravity', model='m', role='agent', usage=u, session='s2'),
+            dict(ts=t('2026-10-02T13:00:00'), tool='Antigravity', model='m', role='agent', usage=u, session='s2'),
+        ]
+        return ing.build_waveform(replies, codex, since=t('2026-09-21T00:00:00'), agy_rows=agy)
+
+    def test_sessions_are_listed_first_seen_and_keyed_by_tool_and_id(self):
+        w = self.build()
+        # time order: Claude s1, Codex s1, Antigravity s2, Antigravity s2, Claude none
+        self.assertEqual([r[2] for r in w['rows']], [0, 1, 2, 2, 0])
+        self.assertEqual(w['sessions'], ['s1', 's1', 's2'])  # same id from two tools: two entries
+        self.assertEqual([r[-1] for r in w['rows']], [0, 1, 2, 2, -1])
+
+    def test_missing_session_is_minus_one_and_adds_nothing(self):
+        w = self.build()
+        self.assertEqual(w['rows'][-1][-1], -1)
+        self.assertEqual(len(w['sessions']), 3)
+
+    def test_fields_end_with_session_and_rows_match(self):
+        w = self.build()
+        self.assertEqual(w['fields'][-1], 'session')
+        self.assertTrue(all(len(r) == len(w['fields']) for r in w['rows']))
+
+
+class WaveformMerges(unittest.TestCase):
+    def merges(self, commits):
+        return ing.build_waveform([], [], since=t('2026-10-01T00:00:00'), main_commits=commits)['merges']
+
+    def commit(self, short, at, subject):
+        return dict(sha=short * 5, short=short, at=t(at), subject=subject, files=[], lines=0)
+
+    def test_filters_by_since_sorts_oldest_first_and_carries_fields(self):
+        m = self.merges([
+            self.commit('bbb', '2026-10-05T00:00:00', 'feat(x): later (#200)'),
+            self.commit('old', '2026-09-01T00:00:00', 'feat(x): too old (#1)'),
+            self.commit('aaa', '2026-10-03T00:00:00', 'fix(y): earlier (#150)'),
+        ])
+        self.assertEqual(m, [
+            [int(t('2026-10-03T00:00:00').timestamp()), 'aaa', 'fix(y): earlier (#150)', 150],
+            [int(t('2026-10-05T00:00:00').timestamp()), 'bbb', 'feat(x): later (#200)', 200],
+        ])
+
+    def test_pr_number_is_the_last_trailing_one_or_none(self):
+        m = self.merges([
+            self.commit('a', '2026-10-02T00:00:00', 'feat(x): thing (#183) (#200)'),
+            self.commit('b', '2026-10-03T00:00:00', 'chore: direct push'),
+        ])
+        self.assertEqual([x[3] for x in m], [200, None])
+
+    def test_no_commits_gives_empty_list(self):
+        self.assertEqual(ing.build_waveform([], [], since=t('2026-10-01T00:00:00'))['merges'], [])

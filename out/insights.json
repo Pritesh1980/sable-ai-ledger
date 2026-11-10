@@ -11,43 +11,43 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 233k tokens on average in the last 7 days (221k the week before). Re-reading that context was 44% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 235k tokens on average in the last 7 days (221k the week before). Re-reading that context was 43% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "12 cache rebuilds cost $13 in the last 7 days (10 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "17 cache rebuilds cost $16 in the last 7 days (10 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
    "area": "ci",
    "title": "CI is failing more often on the first push",
-   "detail": "18 of 22 tasks shipped in the last 14 days passed CI first time, against 98% before (missed: PR #191, PR #174, PR #172). Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what fails."
+   "detail": "20 of 24 tasks shipped in the last 14 days passed CI first time, against 98% before (missed: PR #191, PR #174, PR #172). Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what fails."
   },
   {
    "kind": "tip",
    "area": "rework",
    "title": "Ask for tests on the tricky part up front",
-   "detail": "15 later commits changed files from 5 tasks shipped in the last 28 days, most after PR #166 (5). Follow-up fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part before it builds."
+   "detail": "23 later commits changed files from 8 tasks shipped in the last 28 days, most after PR #166 (6). Follow-up fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part before it builds."
   },
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend up 57% on the week before",
-   "detail": "$163 in the last 7 days, against $104. That is the third week running it has risen. Busiest day: Sat 7 Nov, at $64."
+   "title": "Claude spend up 61% on the week before",
+   "detail": "$167 in the last 7 days, against $104. That is the third week running it has risen. Busiest day: Sat 7 Nov, at $64."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Codex use up 4.4x",
-   "detail": "371 calls in the last 7 days, against 85 the week before."
+   "title": "Codex use up 5.0x",
+   "detail": "421 calls in the last 7 days, against 85 the week before."
   },
   {
    "kind": "trend",
    "area": "tasks",
    "title": "Biggest task this week: PR #200",
-   "detail": "\"feat(artists): guest spots with Nearby soon on Pipeline and Home (#183)\" cost $8.85 over 94 replies, about 3 times your median task ($3.22)."
+   "detail": "\"feat(artists): guest spots with Nearby soon on Pipeline and Home (#183)\" cost $8.85 over 104 replies, about 3 times your median task ($3.22)."
   }
  ]
 }
