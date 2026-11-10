@@ -289,6 +289,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <h1 class="brand"><span class="brand-mark">Sable</span><span class="brand-sub">AI ledger</span></h1>
     <nav class="nav" aria-label="Sections">
       <a href="#tips">Tips</a>
+      <a href="#timeline">Timeline</a>
       <a href="#models">The models</a>
       <a href="#bill">The bill</a>
       <a href="#work">The work</a>
@@ -337,6 +338,21 @@ details.numbers[open] summary { margin-bottom: 10px; }
       </div>
     </div>
     <ol class="tips" id="tips-list"></ol>
+  </section>
+
+  <section class="wrap spread" id="timeline" aria-labelledby="timeline-h" hidden>
+    <div class="spread-head">
+      <div>
+        <h2 id="timeline-h" tabindex="-1">Who worked when</h2>
+        <p id="tl-note">Sable work by Claude Code, Codex and Antigravity over the last 30 days.</p>
+      </div>
+      <div class="seg" role="group" aria-label="Period shown" id="tl-view"></div>
+    </div>
+    <div>
+      <p class="chart-note">One lane for each AI. A bar is 15 minutes of work, taller when it made more calls: solid while building, paler while reviewing another's work. Faint bands mark the times two or more were at work at once. The top rail has a line for each task, with a block for each stretch of work on it, striped by who did it. Point at a task, or tap it, to light up its calls. Drag the slider, or pinch and scroll, to zoom in to a day.</p>
+      <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Timeline of Sable work by Claude Code, Codex and Antigravity over the last 30 days"></div>
+      <ul class="legend" id="tl-legend" style="margin-top: 10px"></ul>
+    </div>
   </section>
 
   <section class="wrap spread" id="models" aria-labelledby="models-h">
@@ -802,6 +818,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     priceTable(D);
     projectTable(D);
     tipsList(D);
+    charts.push(timeline(D));
 
     let pending = 0;
     window.addEventListener('resize', () => {
@@ -1900,6 +1917,278 @@ details.numbers[open] summary { margin-bottom: 10px; }
       row.append(el('span', null, names[role] || role), track, val);
       return row;
     }));
+  }
+
+  // ---------------------------------------------------------------- who worked when (Sable timeline)
+  // One lane per tool, in 15-minute slots, with a band wherever two or more tools were at work and a rail
+  // of tasks on top. Built from the waveform, Sable calls only.
+  function timeline(D) {
+    const W = D.wave;
+    const pi = W.fields.indexOf('project');
+    const sable = pi < 0 ? -1 : (W.projects || []).indexOf('Sable');
+    const calls = pi < 0 ? W.rows : W.rows.filter((r) => r[pi] === sable);
+    if (!calls.length) return null;
+    const SLOT = 900;
+    const TOOLS = [
+      { name: 'Antigravity', color: GROUP.agy.color },
+      { name: 'Codex', color: GROUP.codex.color },
+      { name: 'Claude Code', color: GROUP['claude-opus-5-5'].color },
+    ];
+    const lane = [2, 1, 0]; // waveform tool code -> lane, so Claude Code sits on top
+    const isReview = (r) => r[7] >= 2;
+
+    // slots[lane]: slot start -> what that tool did in those 15 minutes
+    const slots = TOOLS.map(() => new Map());
+    const tasks = new Map();
+    for (const r of calls) {
+      const l = lane[r[2]];
+      const s = Math.floor(r[0] / SLOT) * SLOT;
+      let c = slots[l].get(s);
+      if (!c) slots[l].set(s, c = { build: 0, review: 0, models: new Map(), tasks: new Map() });
+      c[isReview(r) ? 'review' : 'build'] += 1;
+      c.models.set(r[1], (c.models.get(r[1]) || 0) + 1);
+      if (r[8] >= 0) {
+        c.tasks.set(r[8], (c.tasks.get(r[8]) || 0) + 1);
+        let t = tasks.get(r[8]);
+        if (!t) tasks.set(r[8], t = { id: r[8], name: W.tasks[r[8]], from: r[0], to: r[0], by: [0, 0, 0], review: [0, 0, 0], n: 0, runs: [] });
+        // runs: stretches of work on the task with no gap over three hours
+        const run = t.runs[t.runs.length - 1];
+        if (run && r[0] - run[1] <= 3 * 3600) run[1] = r[0]; else t.runs.push([r[0], r[0]]);
+        t.to = r[0];
+        t.by[l] += 1;
+        t.review[l] += isReview(r) ? 1 : 0;
+        t.n += 1;
+      }
+    }
+    const maxN = Math.max(...slots.map((m) => Math.max(0, ...[...m.values()].map((c) => c.build + c.review))));
+
+    // Bands: runs of slots where two or more tools were at work.
+    const active = new Map();
+    slots.forEach((m) => m.forEach((_, s) => active.set(s, (active.get(s) || 0) + 1)));
+    const shared = [...active].filter(([, n]) => n > 1).map(([s]) => s).sort((a, b) => a - b);
+    const bands = [];
+    for (const s of shared) {
+      const last = bands[bands.length - 1];
+      if (last && last[1] === s) last[1] = s + SLOT; else bands.push([s, s + SLOT]);
+    }
+
+    // Task rail: each task from its first call to its last, packed into as few rows as fit.
+    const t0 = calls[0][0], t1 = calls[calls.length - 1][0];
+    const gap = (t1 - t0) / 90;
+    const info = new Map(D.tasks.map((t) => [t.task, t]));
+    const rail = [...tasks.values()].sort((a, b) => a.from - b.from);
+    const rowEnds = [];
+    for (const t of rail) {
+      let row = rowEnds.findIndex((end) => end + gap < t.from);
+      if (row < 0) row = rowEnds.length;
+      rowEnds[row] = Math.max(t.to, t.from + gap);
+      t.row = row;
+    }
+    const RAIL_ROWS = Math.max(1, rowEnds.length);
+    // The rail takes at most the height of about one lane, however many rows it needs.
+    const ROW_H = Math.min(0.3, 1.2 / RAIL_ROWS), RAIL_BASE = 3.2, TOP = RAIL_BASE + RAIL_ROWS * ROW_H;
+
+    // The note: how much of the work was shared.
+    const hours = new Map();
+    for (const r of calls) {
+      const h = Math.floor(r[0] / 3600);
+      hours.set(h, (hours.get(h) || 0) | (1 << r[2]));
+    }
+    const sharedHours = [...hours.values()].filter((v) => v & (v - 1)).length;
+    const per = TOOLS.map((_, l) => {
+      let build = 0, review = 0;
+      slots[l].forEach((c) => { build += c.build; review += c.review; });
+      return { build, review, n: build + review };
+    });
+    const describe = (l) => {
+      const p = per[l];
+      if (!p.n) return null;
+      return TOOLS[l].name + ' made ' + F.int(p.n) + ' calls' + (p.review ? ', ' + F.pct(p.review / p.n) + ' of them reviews' : '');
+    };
+    $('#tl-note').textContent = 'Sable work from ' + F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1)) + '. In ' + sharedHours + ' of the '
+      + hours.size + ' hours with any activity, two or more AIs were at work. ' + [2, 1, 0].map(describe).filter(Boolean).join('. ') + '.';
+    $('#tl-legend').replaceChildren(
+      ...[2, 1, 0].filter((l) => per[l].n).map((l) => { const li = el('li'); li.append(swatch(TOOLS[l].color), TOOLS[l].name); return li; }),
+      (() => { const li = el('li'); const s = swatch(T.ash); s.style.opacity = 0.4; li.append(s, 'Paler: reviewing'); return li; })(),
+      (() => { const li = el('li'); const s = swatch('rgba(239,233,220,0.22)'); li.append(s, 'Band: two or more at once'); return li; })()
+    );
+
+    const ms = (s) => s * 1000;
+    const clock = (s) => new Date(ms(s)).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const dayOf = (s) => F.dayLong(isoDay(s));
+    const span = (s) => {
+      const m = Math.round(s / 60);
+      return m < 60 ? Math.max(1, m) + ' min' : m < 2880 ? (Math.round(m / 6) / 10) + ' hours' : Math.round(m / 1440) + ' days';
+    };
+    const top = (map, name, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => name(k));
+    const sub = (html) => '<div style="color:#a8a294;margin-top:4px;max-width:280px;white-space:normal">' + html + '</div>';
+
+    let lit = null;     // the task whose calls are lit up
+    let pinned = false; // lit by a click, so it stays until the next click
+    const litCalls = () => (lit == null ? [] : calls.filter((r) => r[8] === lit).map((r) => [ms(r[0]), lane[r[2]]]));
+
+    const chart = make('chart-timeline');
+    const narrow = window.innerWidth < 640;
+    const slotData = (l) => [...slots[l]].map(([s, c]) => ({ value: [ms(s), ms(s + SLOT), l, c.build, c.review], c }));
+    const laneSeries = (l) => ({
+      type: 'custom', id: 'lane' + l, name: TOOLS[l].name, data: slotData(l), encode: { x: [0, 1] }, clip: true,
+      renderItem: (params, api) => {
+        const a = api.coord([api.value(0), l]), b = api.coord([api.value(1), l + 1]);
+        const w = Math.max(1.5, b[0] - a[0] - (b[0] - a[0] > 6 ? 1 : 0));
+        const full = (a[1] - b[1]) * 0.86;
+        const build = api.value(3), review = api.value(4);
+        const h = Math.max(3, full * Math.sqrt((build + review) / maxN));
+        const hb = build + review ? h * build / (build + review) : 0;
+        const fade = lit == null ? 1 : 0.3;
+        const kids = [];
+        if (hb > 0) kids.push({ type: 'rect', shape: { x: a[0], y: a[1] - hb, width: w, height: hb }, style: { fill: TOOLS[l].color, opacity: fade } });
+        if (h - hb > 0) kids.push({ type: 'rect', shape: { x: a[0], y: a[1] - h, width: w, height: h - hb }, style: { fill: TOOLS[l].color, opacity: 0.4 * fade } });
+        return { type: 'group', children: kids };
+      },
+    });
+
+    chart.setOption(Object.assign(base(), {
+      animation: false,
+      grid: { left: 8, right: 8, top: 8, bottom: 84 },
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'item',
+        formatter: (p) => {
+          if (p.seriesId === 'rail') {
+            const t = p.data.t, i = info.get(t.name);
+            const who = [2, 1, 0].filter((l) => t.by[l]).map((l) => TOOLS[l].name + ' ' + F.int(t.by[l])
+              + (t.review[l] === t.by[l] ? ' (review)' : t.review[l] ? ' (' + t.review[l] + ' review)' : ''));
+            return '<div style="max-width:280px;white-space:normal"><b>' + esc(t.name) + '</b>' + (i && i.title !== t.name ? ' ' + esc(i.title) : '') + '</div>'
+              + sub(dayOf(t.from) + ' ' + clock(t.from) + ', over ' + span(t.to - t.from)) + sub('Calls: ' + who.join(', '));
+          }
+          const c = p.data.c;
+          if (!c) return '';
+          const s = p.value[0] / 1000, n = c.build + c.review;
+          const what = c.review === n ? 'reviewing' : c.review ? c.build + ' building, ' + c.review + ' reviewing' : 'building';
+          const on = top(c.tasks, (k) => esc(W.tasks[k]), 3);
+          return '<b>' + p.seriesName + '</b> ' + dayOf(s) + ', ' + clock(s) + ' to ' + clock(s + SLOT)
+            + sub(n + (n === 1 ? ' call, ' : ' calls, ') + what) + sub(top(c.models, (k) => modelName(W.models[k]), 3).join(', '))
+            + (on.length ? sub('On ' + on.join(', ')) : '');
+        },
+      }),
+      xAxis: {
+        type: 'time', min: ms(t0 - 3600), max: ms(t1 + 3600), axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false },
+        axisLabel: Object.assign({}, AXIS_LABEL, { hideOverlap: true }), splitLine: { show: false },
+      },
+      yAxis: { type: 'value', min: 0, max: TOP, show: false },
+      dataZoom: [
+        { type: 'inside', filterMode: 'none', minValueSpan: 3 * 3600e3 },
+        { type: 'slider', filterMode: 'none', height: 26, bottom: 16, minValueSpan: 3 * 3600e3, borderColor: '#35312b', backgroundColor: 'transparent',
+          fillerColor: 'rgba(239,233,220,0.08)', handleStyle: { color: '#a8a294', borderColor: '#a8a294' }, moveHandleStyle: { color: '#35312b' },
+          dataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } }, selectedDataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } },
+          textStyle: { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11 }, labelFormatter: (v) => F.day(isoDay(v / 1000)) },
+      ],
+      series: [
+        {
+          type: 'custom', id: 'bands', silent: true, data: bands.map(([a, b]) => [ms(a), ms(b)]), encode: { x: [0, 1] }, clip: true, z: 1,
+          renderItem: (params, api) => {
+            const a = api.coord([api.value(0), 0]), b = api.coord([api.value(1), 3]);
+            return { type: 'rect', shape: { x: a[0], y: b[1], width: Math.max(1.5, b[0] - a[0]), height: a[1] - b[1] }, style: { fill: 'rgba(239,233,220,0.1)' } };
+          },
+        },
+        {
+          // lane names and the lines between lanes, pinned to the left edge whatever the zoom
+          type: 'custom', id: 'names', silent: true, data: [0, 1, 2, 3], z: 6,
+          renderItem: (params, api) => {
+            const g = params.coordSys, i = api.value(0);
+            const y = api.coord([0, i])[1];
+            const kids = [{ type: 'line', shape: { x1: g.x, y1: y, x2: g.x + g.width, y2: y }, style: { stroke: '#35312b', lineWidth: 1 } }];
+            const name = i < 3 ? TOOLS[i].name : 'Tasks';
+            const yText = i < 3 ? api.coord([0, i + 1])[1] + 6 : g.y + 2;
+            kids.push({ type: 'text', x: g.x + 4, y: yText, style: { text: name, fill: '#a8a294', font: '600 11px Archivo, sans-serif', stroke: '#131110', lineWidth: 3 } });
+            return { type: 'group', children: kids };
+          },
+        },
+        laneSeries(0), laneSeries(1), laneSeries(2),
+        {
+          type: 'custom', id: 'rail', name: 'Tasks', data: rail.map((t) => ({ value: [ms(t.from), ms(t.to), t.row], t })), encode: { x: [0, 1] }, clip: true, z: 4,
+          renderItem: (params, api) => {
+            const t = rail[params.dataIndex];
+            const a = api.coord([api.value(0), RAIL_BASE + (RAIL_ROWS - 1 - t.row) * ROW_H]);
+            const b = api.coord([api.value(1), RAIL_BASE + (RAIL_ROWS - t.row) * ROW_H]);
+            const w = Math.max(5, b[0] - a[0]), h = Math.max(4, (a[1] - b[1]) * 0.7), y0 = b[1] + (a[1] - b[1] - h) / 2;
+            const fade = lit == null || lit === t.id ? 1 : 0.3;
+            // a thin line across the whole task, and a block for each stretch of work on it
+            const kids = [{ type: 'rect', shape: { x: a[0], y: y0 + h / 2 - 0.5, width: w, height: 1 }, style: { fill: '#8d877b', opacity: fade } }];
+            for (const run of t.runs) {
+              const x0 = api.coord([ms(run[0]), 0])[0], x1 = api.coord([ms(run[1]), 0])[0];
+              let y = y0;
+              // stripes: each tool's share of the task's calls, Claude Code on top
+              for (const l of [2, 1, 0]) {
+                if (!t.by[l]) continue;
+                const hh = h * t.by[l] / t.n;
+                kids.push({ type: 'rect', shape: { x: x0, y, width: Math.max(4, x1 - x0), height: hh }, style: { fill: TOOLS[l].color, opacity: fade } });
+                y += hh;
+              }
+            }
+            if (lit === t.id) kids.push({ type: 'rect', shape: { x: a[0] - 1.5, y: y0 - 1.5, width: w + 3, height: h + 3 }, style: { fill: 'none', stroke: '#efe9dc', lineWidth: 1.5 } });
+            return { type: 'group', children: kids };
+          },
+        },
+        {
+          // the lit task's calls, one tick each in its tool's lane
+          type: 'custom', id: 'lit', silent: true, data: [], clip: true, z: 5,
+          renderItem: (params, api) => {
+            const l = api.value(1);
+            const a = api.coord([api.value(0), l]), b = api.coord([api.value(0), l + 1]);
+            return { type: 'rect', shape: { x: a[0] - 0.75, y: b[1] + (a[1] - b[1]) * 0.14, width: 1.5, height: (a[1] - b[1]) * 0.86 }, style: { fill: TOOLS[l].color } };
+          },
+        },
+      ],
+    }));
+
+    const light = (id) => {
+      if (lit === id) return;
+      lit = id;
+      // the same data again, so the lanes and rail redraw faded around the lit task
+      chart.setOption({ series: [{ id: 'lit', data: litCalls() }, { id: 'rail', data: rail.map((t) => ({ value: [ms(t.from), ms(t.to), t.row], t })) },
+        ...[0, 1, 2].map((l) => ({ id: 'lane' + l, data: slotData(l) }))] });
+    };
+    chart.on('mouseover', { seriesId: 'rail' }, (p) => { if (!pinned) light(p.data.t.id); });
+    chart.on('mouseout', { seriesId: 'rail' }, () => { if (!pinned) light(null); });
+    chart.on('click', { seriesId: 'rail' }, (p) => {
+      const same = pinned && lit === p.data.t.id;
+      pinned = !same;
+      light(same ? null : p.data.t.id);
+    });
+    chart.getZr().on('click', (e) => { if (!e.target && pinned) { pinned = false; light(null); } });
+
+    // Views: the whole month, or the day with the most shared work.
+    const byDay = new Map();
+    for (const s of shared) byDay.set(isoDay(s), (byDay.get(isoDay(s)) || 0) + 1);
+    const busiest = [...byDay].sort((a, b) => b[1] - a[1])[0];
+    const lastDay = isoDay(t1);
+    // A day's view runs from its first call to its last, with half an hour either side.
+    const showDay = (d) => {
+      const ts = calls.filter((r) => isoDay(r[0]) === d).map((r) => r[0]);
+      chart.dispatchAction({ type: 'dataZoom', startValue: ms(ts[0] - 1800), endValue: ms(Math.max(ts[ts.length - 1], ts[0] + 3 * 3600) + 1800) });
+    };
+    const views = {
+      all: () => chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }),
+      busy: () => showDay(busiest[0]),
+      last: () => showDay(lastDay),
+    };
+    const seg = $('#tl-view');
+    const btn = (key, label) => {
+      const b = el('button', null, label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', key === 'all');
+      b.addEventListener('click', () => {
+        seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+        views[key]();
+      });
+      return b;
+    };
+    seg.replaceChildren(btn('all', narrow ? '30 days' : 'Last 30 days'),
+      ...(busiest ? [btn('busy', 'Busiest day, ' + F.day(busiest[0]))] : []),
+      ...(busiest && busiest[0] === lastDay ? [] : [btn('last', 'Latest day, ' + F.day(lastDay))]));
+    $('#timeline').hidden = false;
+    chart.resize();
+    return chart;
   }
 
   function tipsList(D) {

@@ -79,6 +79,15 @@ Claude Code was used. Each rule speaks only when the data backs it:
 
 Tips come first, then trends, at most 8 in all.
 
+## Sable timeline
+
+The page's "Who worked when" section draws one lane each for Claude Code, Codex and
+Antigravity from `out/waveform.json`, Sable calls only (each waveform row now ends with a
+project index into `projects`). A faint band marks every 15-minute slot where two or more
+tools were at work. The rail on top has one bar per task, from its first call to its last:
+solid fill is building, pale fill is reviewing. It covers the last 30 days, the same window
+as the waveform. Cloud sessions have only daily totals, so they are not on it.
+
 ## Daily refresh
 
 At 05:00 launchd runs `refresh.sh` on this Mac, or runs it on wake if the Mac was

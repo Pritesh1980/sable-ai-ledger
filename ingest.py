@@ -483,28 +483,31 @@ ROLE_CODES = {'main': 0, 'agent': 0, 'subagent': 1, 'review': 2, 'auto-review': 
 def build_waveform(replies, codex_rows, since, agy_rows=()):
     """Every Claude reply, Codex call and Antigravity call since `since`, oldest first, as compact rows:
     [unix time, model index, tool (0 Claude, 1 Codex, 2 Antigravity), context, output, cache written,
-    rebuild 0/1, role (0 main/agent, 1 subagent, 2 review, 3 auto-review), task index or -1].
+    rebuild 0/1, role (0 main/agent, 1 subagent, 2 review, 3 auto-review), task index or -1, project index].
+    `projects` lists project names in first-seen order (a record with no project counts as 'Unknown');
+    the project index is the last element, so readers that only use elements 0-8 keep working.
     Antigravity can run Claude models too, so the tool, not the model, says where a call came from."""
     calls = []
     for r in replies:
         if r['ts'] >= since:
             role = 'subagent' if r['sidechain'] else 'main'
-            calls.append((r['ts'], 0, r['model'], r['usage'], 1 if r.get('rebuild') else 0, role, r.get('task')))
+            calls.append((r['ts'], 0, r['model'], r['usage'], 1 if r.get('rebuild') else 0, role, r.get('task'), r.get('project')))
     for c in codex_rows:
         if c['ts'] >= since:
-            calls.append((c['ts'], 1, c['model'], c['usage'], 0, c['role'], c.get('task')))
+            calls.append((c['ts'], 1, c['model'], c['usage'], 0, c['role'], c.get('task'), c.get('project')))
     for a in agy_rows:
         if a['ts'] >= since:
-            calls.append((a['ts'], 2, a['model'], a['usage'], 0, a['role'], a.get('task')))
+            calls.append((a['ts'], 2, a['model'], a['usage'], 0, a['role'], a.get('task'), a.get('project')))
     calls.sort(key=lambda c: c[0])
-    models, tasks, rows = {}, {}, []
-    for ts, tool, model, u, rebuild, role, task in calls:
+    models, tasks, projects, rows = {}, {}, {}, []
+    for ts, tool, model, u, rebuild, role, task, project in calls:
         m = models.setdefault(model, len(models))
         k = tasks.setdefault(task, len(tasks)) if task else -1
+        p = projects.setdefault(project or 'Unknown', len(projects))
         rows.append([int(ts.timestamp()), m, tool, context(u), u['output'], u['cw5'] + u['cw1h'],
-                     rebuild, ROLE_CODES.get(role, 0), k])
-    return dict(fields=['t', 'model', 'tool', 'context', 'output', 'cache_write', 'rebuild', 'role', 'task'],
-                models=list(models), tasks=list(tasks), rows=rows)
+                     rebuild, ROLE_CODES.get(role, 0), k, p])
+    return dict(fields=['t', 'model', 'tool', 'context', 'output', 'cache_write', 'rebuild', 'role', 'task', 'project'],
+                models=list(models), tasks=list(tasks), projects=list(projects), rows=rows)
 
 
 # ---------------------------------------------------------------- loaders

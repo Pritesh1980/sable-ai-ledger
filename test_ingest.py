@@ -291,9 +291,9 @@ class Waveform(unittest.TestCase):
         self.assertEqual(w['tasks'], ['PR #5'])
         self.assertEqual(len(w['rows']), 2)  # the August reply is outside the window
         codex_row, claude_row = w['rows']
-        # [time, model, tool, context, output, cache write, rebuild, role, task]
-        self.assertEqual(codex_row[1:], [0, 1, 116, 7, 15, 0, 2, -1])
-        self.assertEqual(claude_row[1:], [1, 0, 116, 7, 15, 1, 0, 0])
+        # [time, model, tool, context, output, cache write, rebuild, role, task, project]
+        self.assertEqual(codex_row[1:], [0, 1, 116, 7, 15, 0, 2, -1, 0])
+        self.assertEqual(claude_row[1:], [1, 0, 116, 7, 15, 1, 0, 0, 0])
 
     def test_adds_antigravity_calls_as_tool_2_in_time_order(self):
         u = dict(input=1, cw5=10, cw1h=5, cache_read=100, output=7, thinking=0)
@@ -313,11 +313,11 @@ class Waveform(unittest.TestCase):
         self.assertEqual([r[2] for r in w['rows']], [2, 0, 2, 1])
         self.assertEqual([r[0] for r in w['rows']], sorted(r[0] for r in w['rows']))
         agy_first, claude_row, agy_review, codex_row = w['rows']
-        # [time, model, tool, context, output, cache write, rebuild, role, task]
-        self.assertEqual(agy_first[1:], [0, 2, 100, 3, 0, 0, 0, -1])
-        self.assertEqual(agy_review[1:], [1, 2, 100, 3, 0, 0, 2, -1])
-        self.assertEqual(claude_row[1:], [0, 0, 116, 7, 15, 0, 1, 0])
-        self.assertEqual(codex_row[1:], [2, 1, 116, 7, 15, 0, 2, 0])
+        # [time, model, tool, context, output, cache write, rebuild, role, task, project]
+        self.assertEqual(agy_first[1:], [0, 2, 100, 3, 0, 0, 0, -1, 0])
+        self.assertEqual(agy_review[1:], [1, 2, 100, 3, 0, 0, 2, -1, 0])
+        self.assertEqual(claude_row[1:], [0, 0, 116, 7, 15, 0, 1, 0, 0])
+        self.assertEqual(codex_row[1:], [2, 1, 116, 7, 15, 0, 2, 0, 0])
 
     def test_antigravity_rows_are_optional(self):
         u = dict(input=1, cw5=0, cw1h=0, cache_read=0, output=1, thinking=0)
@@ -662,3 +662,24 @@ class Insights(unittest.TestCase):
         self.assertEqual(kinds, sorted(kinds))  # every 'tip' before any 'trend'
         self.assertEqual(kinds[0], 'tip')
         self.assertLessEqual(len(items), 8)
+
+
+class WaveformProjects(unittest.TestCase):
+    def test_each_row_ends_with_its_project_index_first_seen_order(self):
+        u = dict(input=1, cw5=0, cw1h=0, cache_read=0, output=1, thinking=0)
+        replies = [
+            dict(ts=t('2026-10-02T10:00:00'), model='m', usage=u, sidechain=False, project='Sable'),
+            dict(ts=t('2026-10-02T14:00:00'), model='m', usage=u, sidechain=False),  # no project
+        ]
+        codex = [dict(ts=t('2026-10-02T11:00:00'), model='m', usage=u, role='main', project='ai-usage')]
+        agy = [
+            dict(ts=t('2026-10-02T12:00:00'), tool='Antigravity', model='m', role='agent', usage=u, project='Sable'),
+            dict(ts=t('2026-10-02T13:00:00'), tool='Antigravity', model='m', role='agent', usage=u, project=None),
+        ]
+        w = ing.build_waveform(replies, codex, since=t('2026-09-21T00:00:00'), agy_rows=agy)
+        self.assertEqual(w['fields'][-1], 'project')
+        self.assertEqual(w['projects'], ['Sable', 'ai-usage', 'Unknown'])
+        # time order: Claude Sable, Codex ai-usage, Antigravity Sable, Antigravity none, Claude none
+        self.assertEqual([r[2] for r in w['rows']], [0, 1, 2, 2, 0])
+        self.assertEqual([r[-1] for r in w['rows']], [0, 1, 0, 2, 2])
+        self.assertTrue(all(len(r) == len(w['fields']) for r in w['rows']))
