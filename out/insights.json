@@ -11,13 +11,13 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 235k tokens on average in the last 7 days (221k the week before). Re-reading that context was 43% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 237k tokens on average in the last 7 days (221k the week before). Re-reading that context was 43% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "17 cache rebuilds cost $16 in the last 7 days (10 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "19 cache rebuilds cost $17 in the last 7 days (10 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
@@ -29,19 +29,19 @@
    "kind": "tip",
    "area": "rework",
    "title": "Ask for tests on the tricky part up front",
-   "detail": "23 later commits changed files from 8 tasks shipped in the last 28 days, most after PR #166 (6). Follow-up fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part before it builds."
+   "detail": "32 later commits changed files from 9 tasks shipped in the last 28 days, most after PR #166 (7). Follow-up fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part before it builds."
   },
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend up 61% on the week before",
-   "detail": "$167 in the last 7 days, against $104. That is the third week running it has risen. Busiest day: Sat 7 Nov, at $64."
+   "title": "Claude spend up 66% on the week before",
+   "detail": "$173 in the last 7 days, against $104. That is the third week running it has risen. Busiest day: Sat 7 Nov, at $64."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Codex use up 5.0x",
-   "detail": "421 calls in the last 7 days, against 85 the week before."
+   "title": "Codex use up 5.2x",
+   "detail": "442 calls in the last 7 days, against 85 the week before."
   },
   {
    "kind": "trend",
