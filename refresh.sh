@@ -14,12 +14,25 @@ notify() { osascript -e "display notification \"$1\" with title \"Sable AI Ledge
 trap 'notify "Refresh failed. See $LOG"; echo "FAILED at line $LINENO" >&2' ERR
 
 echo "== $(date '+%F %T')"
+# On wake from sleep the run can start before the network is back (2026-11-14:
+# "Could not resolve host"). Wait up to 5 minutes for GitHub to resolve.
+for _ in $(seq 1 30); do
+  host github.com >/dev/null 2>&1 && break
+  sleep 10
+done
 # Catch up with GitHub first. Page and script changes are pushed from elsewhere
 # (cloud sessions), and a main that's behind origin can't push the day's data.
 # --rebase replays any data commit a failed run left unpushed on top.
 git pull -q --rebase --autostash origin main
 "$PY" -m unittest -q 2>&1 | tail -1
-"$PY" ingest.py          # stops without writing if any past day lost tokens
+# The ingest stops without writing if any past day lost tokens. A conversation
+# being written while it is read can look short (Antigravity on 2026-11-12, fine
+# the next day), so wait and try once more before failing the run.
+if ! "$PY" ingest.py; then
+  echo "Ingest stopped; trying again in 3 minutes"
+  sleep 180
+  "$PY" ingest.py
+fi
 # out/meta.json stamps the run time the page shows as "Last updated", so it
 # changes every run: every run commits and redeploys, even with no new usage.
 git add out

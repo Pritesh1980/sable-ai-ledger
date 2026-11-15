@@ -99,7 +99,9 @@ asleep. It pulls from GitHub first (so a page or script change pushed from elsew
 can't block its push), then runs the tests and the ingest, commits `out/` (every run,
 since `meta.json` stamps each one; the commit says "no new usage" when only that
 changed), and pushes to https://github.com/Pritesh1980/sable-ai-ledger. That push runs
-the Pages workflow. It shows a macOS notification if anything fails.
+the Pages workflow. It waits up to 5 minutes for the network (a run that starts on wake can beat it), and
+if the ingest's shrink guard stops it, tries once more 3 minutes later, since a conversation
+being written can read short. It shows a macOS notification if anything fails.
 
 If the Mac sleeps all day, the page shows the previous day's data until the next run.
 Change the page itself by committing `ledger/index.html` and pushing.
