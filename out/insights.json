@@ -1,29 +1,29 @@
 {
- "through": "2026-11-15",
+ "through": "2026-11-16",
  "items": [
   {
    "kind": "tip",
    "area": "models",
    "title": "Try Sonnet for small and medium jobs",
-   "detail": "Opus took 98% of Claude spend in the last 28 days. Your small and medium tasks cost a median $2.49 on Opus and $1.09 on Sonnet, and passed CI first time 86% and 100% of the time. Switch with /model sonnet for fixes and small features, and keep Opus for big or tricky work."
+   "detail": "Opus took 97% of Claude spend in the last 28 days. Your small and medium tasks cost a median $2.49 on Opus and $1.09 on Sonnet, and passed CI first time 86% and 100% of the time. Switch with /model sonnet for fixes and small features, and keep Opus for big or tricky work."
   },
   {
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 210k tokens on average in the last 7 days (220k the week before). Re-reading that context was 45% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 195k tokens on average in the last 7 days (224k the week before). Re-reading that context was 45% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "27 cache rebuilds cost $14 in the last 7 days (12 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "26 cache rebuilds cost $11 in the last 7 days (12 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
    "area": "ci",
    "title": "CI is failing more often on the first push",
-   "detail": "28 of 34 tasks shipped in the last 14 days passed CI first time, against 96% before (missed: PR #224, PR #213, PR #191). Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what fails."
+   "detail": "30 of 36 tasks shipped in the last 14 days passed CI first time, against 96% before (missed: PR #224, PR #213, PR #191). Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what fails."
   },
   {
    "kind": "tip",
@@ -34,14 +34,20 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 61% on the week before",
-   "detail": "$64 in the last 7 days, against $163. Busiest day: Wed 11 Nov, at $23."
+   "title": "Claude spend down 65% on the week before",
+   "detail": "$60 in the last 7 days, against $171. Busiest day: Wed 11 Nov, at $23."
+  },
+  {
+   "kind": "trend",
+   "area": "tools",
+   "title": "Codex use up 2.0x",
+   "detail": "635 calls in the last 7 days, against 316 the week before."
   },
   {
    "kind": "trend",
    "area": "tasks",
    "title": "Biggest task this week: PR #217",
-   "detail": "\"feat(placement): forearm model, limb switch, and 3D arm from Brief ideas (#206)\" cost $11 over 103 replies, about 4 times your median task ($3.03)."
+   "detail": "\"feat(placement): forearm model, limb switch, and 3D arm from Brief ideas (#206)\" cost $11 over 103 replies, about 4 times your median task ($2.99)."
   }
  ]
 }
