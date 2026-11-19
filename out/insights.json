@@ -1,23 +1,17 @@
 {
- "through": "2026-11-17",
+ "through": "2026-11-18",
  "items": [
   {
    "kind": "tip",
    "area": "models",
    "title": "Try Sonnet for small and medium jobs",
-   "detail": "Opus took 96% of Claude spend in the last 28 days. Your small and medium tasks cost a median $2.49 on Opus and $1.09 on Sonnet, and passed CI first time 86% and 100% of the time. Switch with /model sonnet for fixes and small features, and keep Opus for big or tricky work."
-  },
-  {
-   "kind": "tip",
-   "area": "context",
-   "title": "Keep sessions to one task each",
-   "detail": "Each reply read 171k tokens on average in the last 7 days (237k the week before). Re-reading that context was 48% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Opus took 95% of Claude spend in the last 28 days. Your small and medium tasks cost a median $2.43 on Opus and $1.09 on Sonnet, and passed CI first time 84% and 100% of the time. Switch with /model sonnet for fixes and small features, and keep Opus for big or tricky work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "18 cache rebuilds cost $8.18 in the last 7 days (19 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "18 cache rebuilds cost $9.95 in the last 7 days (19 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
@@ -28,14 +22,26 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 66% on the week before",
-   "detail": "$59 in the last 7 days, against $173. Busiest day: Wed 11 Nov, at $23."
+   "title": "Claude spend down 74% on the week before",
+   "detail": "$48 in the last 7 days, against $188. Busiest day: Wed 18 Nov, at $12."
+  },
+  {
+   "kind": "trend",
+   "area": "context",
+   "title": "Leaner sessions this week",
+   "detail": "Each reply read 145k tokens on average, down from 246k the week before."
+  },
+  {
+   "kind": "trend",
+   "area": "tools",
+   "title": "Codex use down 79%",
+   "detail": "168 calls in the last 7 days, against 795 the week before."
   },
   {
    "kind": "trend",
    "area": "tasks",
-   "title": "Biggest task this week: PR #217",
-   "detail": "\"feat(placement): forearm model, limb switch, and 3D arm from Brief ideas (#206)\" cost $11 over 103 replies, about 4 times your median task ($2.99)."
+   "title": "Biggest task this week: Issue #220",
+   "detail": "\"Catalogue the owner's UX complaints and their causes before fixing anything\" cost $14 over 311 replies, about 5 times your median task ($2.86)."
   }
  ]
 }
