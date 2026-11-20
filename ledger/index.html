@@ -789,7 +789,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     $('#scope').replaceChildren(
       'All Claude Code, Codex and Antigravity usage on this Mac, across every project, with Claude priced at API list rates. ',
       ...(refreshed ? [el('b', 'stamp', 'Last updated ' + when(refreshed) + '.'), ' '] : []),
-      'Data through ' + when(lastCall * 1000) + '.'
+      'Latest activity ' + when(lastCall * 1000) + '.'
     );
 
     // figures
