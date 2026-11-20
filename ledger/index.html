@@ -292,6 +292,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   <div class="wrap mast-row">
     <h1 class="brand"><span class="brand-mark">Sable</span><span class="brand-sub">AI ledger</span></h1>
     <nav class="nav" aria-label="Sections">
+      <a href="#pertask">Per task</a>
       <a href="#tips">Tips</a>
       <a href="#timeline">Timeline</a>
       <a href="#models">The models</a>
@@ -332,6 +333,20 @@ details.numbers[open] summary { margin-bottom: 10px; }
         <ul class="legend" id="wave-legend"></ul>
       </figcaption>
     </figure>
+  </section>
+
+  <section class="wrap spread" id="pertask" aria-labelledby="pertask-h" hidden>
+    <div class="spread-head">
+      <div>
+        <h2 id="pertask-h" tabindex="-1">Cost per shipped task</h2>
+        <p id="pertask-note">What a shipped task cost on average, by the Claude model that led it.</p>
+      </div>
+      <div class="seg" role="group" aria-label="Tasks shown" id="pertask-view"></div>
+    </div>
+    <div>
+      <p class="chart-note">Each bar is the average Claude cost of the shipped tasks a model led, priced at API list rates. The dark tick is the median: when it sits well short of the bar's end, a few expensive tasks are pulling the average up. Models that led fewer than 3 tasks are left out as too few to judge. Point at a bar for details.</p>
+      <div class="chart" id="chart-pertask" style="height: 300px" role="img" aria-label="Average Claude cost per shipped task for each lead model"></div>
+    </div>
   </section>
 
   <section class="wrap spread" id="tips" aria-labelledby="tips-h" hidden>
@@ -831,6 +846,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     projectTable(D);
     tipsList(D);
     charts.push(timeline(D));
+    charts.push(perTask(S));
 
     let pending = 0;
     window.addEventListener('resize', () => {
@@ -1538,6 +1554,82 @@ details.numbers[open] summary { margin-bottom: 10px; }
       row.append(label, bars);
       return row;
     }));
+  }
+
+  // ---------------------------------------------------------------- average cost per shipped task, by lead model
+  function perTask(S) {
+    const VIEWS = [['all', 'All tasks', null], ['small', 'Small and medium', ['S', 'M']], ['large', 'Large', ['L', 'XL']]];
+    const MIN = 3;
+    const shipped = S.tasks.filter((t) => t.shipped && t.cost_usd > 0 && t.primary_model && t.primary_model.startsWith('claude-'));
+    if (!shipped.length) return null;
+    const codexLed = S.tasks.filter((t) => t.shipped && t.primary_model && groupOf(t.primary_model) === 'codex').length;
+    const FG = '#efe9dc', BG = '#131110';
+    const chart = make('chart-pertask');
+    const rowsFor = (keep) => {
+      const by = new Map();
+      for (const t of shipped) {
+        if (keep && !keep.includes(t.size)) continue;
+        if (!by.has(t.primary_model)) by.set(t.primary_model, []);
+        by.get(t.primary_model).push(t.cost_usd);
+      }
+      return [...by].map(([m, c]) => ({ m, name: modelName(m), n: c.length, avg: sum(c) / c.length, med: median(c), total: sum(c), ok: c.length >= MIN }))
+        .sort((a, b) => (b.ok - a.ok) || a.avg - b.avg);
+    };
+    function show(key) {
+      const [, label, keep] = VIEWS.find((v) => v[0] === key);
+      const every = rowsFor(keep);
+      const rows = every.filter((r) => r.ok), few = every.filter((r) => !r.ok);
+      const top = rows.slice().sort((a, b) => b.n - a.n)[0];
+      const lo = rows[0], hi = rows[rows.length - 1];
+      $('#pertask-note').textContent = (top
+        ? label + ': ' + top.name + ' led the most (' + top.n + ') at ' + F.usd(top.avg) + ' a task on average'
+          + (rows.length > 1 && lo === top ? ', the cheapest' : rows.length > 1 && hi === top ? ', the dearest' : '') + '.'
+          + (rows.length > 1 && lo !== top ? ' Cheapest was ' + lo.name + ' at ' + F.usd(lo.avg) + '.' : '')
+          + (rows.length > 1 && hi !== top ? ' Dearest was ' + hi.name + ' at ' + F.usd(hi.avg) + '.' : '') + ' '
+        : label + ': too few tasks per model to compare. ')
+        + (few.length ? 'Left out with fewer than ' + MIN + ' tasks: ' + listed(few.map((r) => r.name + ' (' + r.n + ', ' + F.usd(r.avg) + ' average)')) + '. ' : '')
+        + 'Codex and Gemini are not shown: there are no list prices for them here, Codex led only ' + codexLed
+        + (codexLed === 1 ? ' shipped task' : ' shipped tasks') + ', and Antigravity work is not tied to tasks.';
+      $('#chart-pertask').style.height = (rows.length * 46 + 40) + 'px';
+      chart.resize();
+      chart.setOption(Object.assign(base(), {
+        grid: { left: 8, right: 64, top: 8, bottom: 24, containLabel: true },
+        tooltip: Object.assign({}, TIP, {
+          trigger: 'item',
+          formatter: (p) => {
+            const r = rows[p.dataIndex];
+            return '<b>' + r.name + '</b>, ' + label.toLowerCase() + '<br>Average <b>' + F.usd(r.avg) + '</b>, median ' + F.usd(r.med)
+              + '<br>' + r.n + ' tasks, ' + F.usd(r.total) + ' in all';
+          },
+        }),
+        xAxis: { type: 'value', axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => '$' + v }), splitLine: { lineStyle: { color: '#35312b', opacity: 0.6 } } },
+        yAxis: {
+          type: 'category', inverse: true, data: rows.map((r) => r.name), axisTick: { show: false }, axisLine: { show: false },
+          axisLabel: { formatter: (v, i) => '{m|' + v + '}\n{n|' + rows[i].n + (rows[i].n === 1 ? ' task' : ' tasks') + '}',
+            rich: { m: { color: FG, fontFamily: 'Archivo, sans-serif', fontSize: 13, fontWeight: 500 }, n: { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11, padding: [3, 0, 0, 0] } } },
+        },
+        series: [
+          { type: 'bar', barWidth: 18, data: rows.map((r) => ({ value: r.avg, itemStyle: { color: FG, borderRadius: [0, 3, 3, 0] } })),
+            label: { show: true, position: 'right', formatter: (p) => F.usd(p.value), color: FG, fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
+          { type: 'scatter', data: rows.map((r) => r.med), symbol: 'rect', symbolSize: [3, 18], z: 5, silent: true,
+            itemStyle: { color: BG, borderColor: FG, borderWidth: 1 } },
+        ],
+      }), true);
+    }
+    const seg = $('#pertask-view');
+    seg.replaceChildren(...VIEWS.map(([key, label]) => {
+      const b = el('button', null, label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', key === 'all');
+      b.addEventListener('click', () => {
+        seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+        show(key);
+      });
+      return b;
+    }));
+    $('#pertask').hidden = false;
+    show('all');
+    return chart;
   }
 
   // ---------------------------------------------------------------- cost per shipped task, week by week

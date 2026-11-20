@@ -48,8 +48,10 @@ SINCE = '2026-05-01'
 # Claude API list prices, USD per million tokens: (input, output, cache read).
 # Cache writes cost 1.25x input for a 5-minute entry and 2x for a 1-hour entry.
 # Source: the claude-api reference bundled with Claude Code, cached 2026-10-06.
-PRICES_AS_OF = '2026-10-06'
+PRICES_AS_OF = '2026-11-20'
 PRICES = {
+    'claude-fable-5-2': (8.0, 40.0, 0.20),
+    'claude-haiku-5-5': (0.10, 0.50, 0.01),
     'claude-opus-5-5': (4.0, 20.0, 0.20),
     'claude-opus-5': (5.0, 25.0, 0.50),
     'claude-opus-4-8': (5.0, 25.0, 0.50),

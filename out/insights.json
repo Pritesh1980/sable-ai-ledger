@@ -3,15 +3,15 @@
  "items": [
   {
    "kind": "tip",
-   "area": "models",
-   "title": "Try Sonnet for small and medium jobs",
-   "detail": "Opus took 95% of Claude spend in the last 28 days. Your small and medium tasks cost a median $2.43 on Opus and $1.09 on Sonnet, and passed CI first time 84% and 100% of the time. Switch with /model sonnet for fixes and small features, and keep Opus for big or tricky work."
+   "area": "context",
+   "title": "Keep sessions to one task each",
+   "detail": "Each reply read 150k tokens on average in the last 7 days (240k the week before). Re-reading that context was 32% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "16 cache rebuilds cost $9.49 in the last 7 days (23 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "16 cache rebuilds cost $24 in the last 7 days (23 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
@@ -22,14 +22,8 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 70% on the week before",
-   "detail": "$45 in the last 7 days, against $152. Busiest day: Wed 18 Nov, at $12."
-  },
-  {
-   "kind": "trend",
-   "area": "context",
-   "title": "Leaner sessions this week",
-   "detail": "Each reply read 147k tokens on average, down from 240k the week before."
+   "title": "Claude spend down 58% on the week before",
+   "detail": "$104 in the last 7 days, against $248. Busiest day: Sat 14 Nov, at $32."
   },
   {
    "kind": "trend",
@@ -41,7 +35,7 @@
    "kind": "trend",
    "area": "tasks",
    "title": "Biggest task this week: Issue #220",
-   "detail": "\"Catalogue the owner's UX complaints and their causes before fixing anything\" cost $14 over 311 replies, about 5 times your median task ($2.86)."
+   "detail": "\"Catalogue the owner's UX complaints and their causes before fixing anything\" cost $28 over 311 replies, about 9 times your median task ($3.22)."
   }
  ]
 }

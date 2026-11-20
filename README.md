@@ -79,6 +79,14 @@ Claude Code was used. Each rule speaks only when the data backs it:
 
 Tips come first, then trends, at most 8 in all.
 
+## Cost per shipped task
+
+Straight after the waveform, "Cost per shipped task" shows the average Claude cost of the
+shipped tasks each model led (`primary_model` in `out/tasks.json`), with a tick for the median.
+Buttons switch between all tasks, small and medium (S, M) and large (L, XL), since bigger jobs
+tend to go to some models more than others. Models that led fewer than 3 tasks are named in the
+note instead of drawn. Codex and Gemini have no list prices here, so they are left out.
+
 ## Sable timeline
 
 The page's "Who worked when" section is a git graph with the AIs as branches. Claude Code's lane
@@ -155,6 +163,7 @@ the logs may no longer hold.
   The CLI logs get pruned, so the folders they name are kept in
   `out/antigravity_folders.json`.
 - Prices are in `PRICES` at the top of `ingest.py`; update them and `PRICES_AS_OF`
-  when Anthropic changes list prices.
+  when Anthropic changes list prices. A Claude model missing from it costs nothing in the
+  ledger (Fable 5.2 and Haiku 5.5 did until 2026-11-20), so add new models when they appear.
 - The model palette in `ledger/index.html` was checked with the dataviz skill's
   `validate_palette.js` against the ink background; keep its fixed order.
