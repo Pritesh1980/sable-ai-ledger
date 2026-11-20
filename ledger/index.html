@@ -922,7 +922,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
     });
     // Antigravity is a few dozen calls among thousands, so it is drawn last, over Codex.
     wave.byColor = new Map([...byColor].sort((a, b) => (a[0] === 'agy') - (b[0] === 'agy')));
-    wave.rebuilds = W.rows.map((r, i) => (r[6] ? i : -1)).filter((i) => i >= 0);
     wave.days = [];
     let prev = '';
     W.rows.forEach((r, i) => {
@@ -937,10 +936,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
       li.append(swatch(g.color), g.name);
       return li;
     }));
-    const spark = el('li');
-    const ss = el('span', 'sw spark');
-    spark.append(ss, 'Cache rebuild');
-    legend.appendChild(spark);
 
     sizeWave();
     const c = wave.canvas;
@@ -1040,22 +1035,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
         else ctx.fillRect(x, mid + 1, ww, hh);
       }
     }
-    // cache rebuild sparks
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = T.spark;
-    ctx.shadowColor = T.spark;
-    ctx.shadowBlur = 12;
-    for (const i of wave.rebuilds) {
-      if (i >= n) break;
-      const r = rows[i];
-      const hh = Math.max(2, r[3] * k);
-      const x = padL + i * step;
-      ctx.fillRect(x, mid - hh, Math.max(1.5, bw), hh);
-      ctx.beginPath();
-      ctx.arc(x + bw / 2, mid - hh, 2.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
     // baseline
     ctx.fillStyle = T.bone;
     ctx.globalAlpha = 0.85;
