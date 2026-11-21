@@ -5,7 +5,7 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 150k tokens on average in the last 7 days (240k the week before). Re-reading that context was 32% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 158k tokens on average in the last 7 days (240k the week before). Re-reading that context was 33% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
@@ -22,20 +22,20 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 58% on the week before",
-   "detail": "$104 in the last 7 days, against $248. Busiest day: Sat 14 Nov, at $32."
+   "title": "Claude spend down 56% on the week before",
+   "detail": "$110 in the last 7 days, against $248. Busiest day: Sat 14 Nov, at $32."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Codex use down 81%",
-   "detail": "149 calls in the last 7 days, against 800 the week before."
+   "title": "Codex use down 80%",
+   "detail": "161 calls in the last 7 days, against 800 the week before."
   },
   {
    "kind": "trend",
    "area": "tasks",
    "title": "Biggest task this week: Issue #220",
-   "detail": "\"Catalogue the owner's UX complaints and their causes before fixing anything\" cost $28 over 311 replies, about 9 times your median task ($3.22)."
+   "detail": "\"Catalogue the owner's UX complaints and their causes before fixing anything\" cost $32 over 364 replies, about 10 times your median task ($3.22)."
   }
  ]
 }
