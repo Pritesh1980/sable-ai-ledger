@@ -22,7 +22,7 @@ and CI come from Sable's git and GitHub only, so only Sable work is attributed t
 |---|---|---|
 | Claude Code transcripts | `~/.claude/projects/` (every project) | Tokens, cache, thinking, model, branch, folder per reply |
 | Codex sessions | `~/.codex/sessions/` and `archived_sessions/`, plain or `.jsonl.zst` (needs the `zstd` tool) | Tokens per call, model, role, branch, folder |
-| Antigravity (agy CLI and IDE) | `~/.gemini/antigravity-cli/` and `~/.gemini/antigravity/`, one SQLite file per conversation in `conversations/` | Tokens per generation, model (mostly Gemini) |
+| Antigravity (agy CLI and IDE) | `~/.gemini/antigravity-cli/` and `~/.gemini/antigravity/`, one SQLite file per conversation in `conversations/`, plus each conversation's `brain/<id>/.system_generated/logs/transcript.jsonl` | Tokens per generation, model, effort level and two-model mode (from the SQLite); the branches and PRs its commands named (from the transcript) |
 | Gemini CLI (before agy) | `~/.gemini/tmp/<project>/chats/` | Tokens per reply, model |
 | git + GitHub (`gh`) | the Sable repo | PRs, issues, CI runs, diff sizes, rework |
 
@@ -85,7 +85,24 @@ Straight after the waveform, "Cost per shipped task" shows the average Claude co
 shipped tasks each model led (`primary_model` in `out/tasks.json`), with a tick for the median.
 Buttons switch between all tasks, small and medium (S, M) and large (L, XL), since bigger jobs
 tend to go to some models more than others. Models that led fewer than 3 tasks are named in the
-note instead of drawn. Codex and Gemini have no list prices here, so they are left out.
+note instead of drawn. Codex and Antigravity models have no list prices here, so they are left
+out; the note says how many shipped tasks each led.
+
+## Inside Antigravity
+
+After "The models", a section on how Antigravity ran: tokens per week split into planning
+(Gemini 4 Argon) and carrying out (Gemini 4 Hydrogen) in its two-model mode, and one-model
+work; the effort level picked; building against reviewing; and how much of its Sable work is
+tied to tasks. Antigravity logs the planner as "Orchestrator (Argon)", which the ledger counts
+as `gemini-4-argon`. Daily rows for Antigravity carry `mode` (plan, execute, single) and
+`effort` (Low, Medium, High, or null).
+
+An Antigravity call joins a task in one of two ways. Its transcript's commands (`git checkout
+-b`, `git worktree add -b`, `gh pr create --head`, `git push origin`, `gh pr <verb> N`) say
+which branch or PR it was on, and each call takes the latest one before it. An `agy --print`
+review run with none of those takes the task of the Claude Code reply that launched it, up to
+10 minutes earlier. Tasks gain `agy_tokens` and `agy_review_tokens`, and Antigravity can be a
+task's lead model.
 
 ## Sable timeline
 

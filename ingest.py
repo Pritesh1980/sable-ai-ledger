@@ -344,19 +344,26 @@ def program(words):
     return words[i:]
 
 
-def review_tool(cmd):
-    """'codex' or 'agy' when the command runs a cross-model review (codex exec, agy --print),
-    else None. Polls such as `pgrep -f "codex exec"` and mentions in text do not count."""
+def review_tools(cmd):
+    """Every cross-model reviewer the command runs, in order: 'codex' (codex exec) and 'agy'
+    (agy --print). Polls such as `pgrep -f "codex exec"` and mentions in text do not count."""
+    found = []
     for words in shell_commands(cmd):
         argv = program(words)
         if not argv:
             continue
         name = os.path.basename(argv[0])
         if name == 'codex' and 'exec' in argv[1:]:
-            return 'codex'
-        if name == 'agy' and ('--print' in argv[1:] or '-p' in argv[1:]):
-            return 'agy'
-    return None
+            found.append('codex')
+        elif name == 'agy' and ('--print' in argv[1:] or '-p' in argv[1:]):
+            found.append('agy')
+    return list(dict.fromkeys(found))
+
+
+def review_tool(cmd):
+    """The first reviewer the command runs, else None."""
+    found = review_tools(cmd)
+    return found[0] if found else None
 
 
 def resolve_dir(path, cwd):
@@ -681,9 +688,25 @@ def antigravity_generation(blob):
 
 def antigravity_model(name):
     """'Gemini 3.6 Flash (Medium)' -> 'gemini-3.6-flash'. The effort level in brackets is dropped,
-    and Claude models take Claude Code's ids so the same model adds up across tools."""
+    and Claude models take Claude Code's ids so the same model adds up across tools. The planner in
+    Antigravity's two-model mode is logged as 'Orchestrator (Argon)': that is Gemini 4 Argon."""
+    m = re.match(r'^Orchestrator \((\w+)\)$', name.strip())
+    if m:
+        return 'gemini-4-' + m.group(1).lower()
     slug = re.sub(r'\s+', '-', re.sub(r'\s*\([^)]*\)\s*$', '', name).strip().lower())
     return slug.replace('.', '-') if slug.startswith('claude-') else slug
+
+
+def antigravity_mode(name):
+    """'plan' or 'execute' for the two halves of Antigravity's two-model mode, else 'single'."""
+    name = name or ''
+    return 'plan' if name.startswith('Orchestrator') else 'execute' if '(Orchestrator)' in name else 'single'
+
+
+def antigravity_effort(name):
+    """The effort setting in brackets ('Low', 'Medium', 'High'), else None."""
+    m = re.search(r'\((Low|Medium|High)\)\s*$', name or '')
+    return m.group(1) if m else None
 
 
 def name_models(gens):
@@ -953,6 +976,71 @@ def read_antigravity_db(path):
                 request=next((g['request'] for g in gens if g['request']), ''), gens=gens)
 
 
+# Commands that put an Antigravity conversation on a branch. A bare checkout of a file is skipped.
+AGY_BRANCH_RES = [
+    re.compile(r'\bgit (?:checkout|switch)\s+-[bcBC]\s+([\w./-]+)'),
+    re.compile(r'\bgit (?:checkout|switch)\s+(?!-)([\w./-]+)(?=\s*(?:$|[;&|)]))'),
+    re.compile(r'\bgit worktree add\b[^;&|]*?\s-[bB]\s+([\w./-]+)'),
+    re.compile(r'\bgh pr create\b[^;&|]*?--head\s+([\w./-]+)'),
+    re.compile(r'\bgit push\b[^;&|]*?\borigin\s+([\w./-]+)'),
+]
+AGY_LAUNCH_WINDOW = timedelta(minutes=10)
+
+
+def antigravity_signals(records):
+    """(time, branch, PR number) each time an Antigravity conversation moved onto a branch or acted
+    on a PR, read from the commands in its transcript, in order. Requests are not read: naming a PR
+    is not working on it."""
+    out = []
+    for e in records:
+        at = parse_ts(e.get('created_at'))
+        if not at:
+            continue
+        for tc in e.get('tool_calls') or []:
+            if tc.get('name') != 'run_command':
+                continue
+            cmd = (tc.get('args') or {}).get('CommandLine') or ''
+            if cmd.startswith('"'):
+                try:
+                    cmd = json.loads(cmd)
+                except ValueError:
+                    pass
+            if not isinstance(cmd, str):
+                continue
+            for n in GH_PR_RE.findall(cmd) + PR_URL_RE.findall(cmd):
+                out.append((at, None, int(n)))
+            for rx in AGY_BRANCH_RES:
+                for b in rx.findall(cmd):
+                    if b != 'HEAD' and not re.search(r'\.\w{1,4}$', b):
+                        out.append((at, b, None))
+    return out
+
+
+def antigravity_task(signals, at, idx, pr_nums):
+    """The task an Antigravity call at `at` worked on: the PR of the latest signal before it, or of
+    the conversation's first signal when it came before any. Main, or a branch with no PR, is none."""
+    if not signals:
+        return None
+    before = [s for s in signals if s[0] <= at]
+    _, branch, n = before[-1] if before else signals[0]
+    if n:
+        return 'PR #%d' % n if n in pr_nums else None
+    if branch in MAIN_BRANCHES:
+        return None
+    n = pr_for_branch(idx, branch, at)
+    return 'PR #%d' % n if n else None
+
+
+def launched_by(launches, start):
+    """The task of the `agy --print` run Claude Code launched that began a conversation at `start`:
+    the latest launch up to a minute after it and no more than AGY_LAUNCH_WINDOW before it."""
+    best = None
+    for ts, task in launches:
+        if ts - timedelta(minutes=1) <= start <= ts + AGY_LAUNCH_WINDOW:
+            best = task
+    return best
+
+
 def load_antigravity(saved_folders):
     """Model calls from every Antigravity conversation, each booked to a project, plus every
     folder the agy logs named (to keep), and counts of how each conversation was placed."""
@@ -978,10 +1066,19 @@ def load_antigravity(saved_folders):
                 stats['unreadable'] += 1
                 continue
             c['ide'] = d != cli
+            log = os.path.join(d, 'brain', c['id'], '.system_generated', 'logs', 'transcript.jsonl')
+            c['signals'] = antigravity_signals(iter_jsonl(log)) if os.path.exists(log) else []
             convs.append(c)
     # Names are learnt across every conversation, Sable or not, so older calls can borrow them.
-    for g, model in zip([g for c in convs for g in c['gens']], name_models([g for c in convs for g in c['gens']])):
+    every = [g for c in convs for g in c['gens']]
+    full = {}
+    for g in every:
+        if g['name'] and g['code'] is not None:
+            full.setdefault(g['code'], g['name'])
+    for g, model in zip(every, name_models(every)):
         g['model'] = model
+        name = g['name'] or full.get(g['code'])
+        g['mode'], g['effort'] = antigravity_mode(name), antigravity_effort(name)
     rows = []
     for c in convs:
         folder = c['folder'] or folders.get(c['id'])
@@ -992,7 +1089,9 @@ def load_antigravity(saved_folders):
         else:
             stats['other'] += 1
         role = 'agent' if c['ide'] or c['id'] in interactive else 'review'
-        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'], project=project, session=c['id'])
+        signals = c['signals'] if project == SABLE else []
+        rows += [dict(ts=g['ts'], tool='Antigravity', model=g['model'], role=role, usage=g['usage'], project=project,
+                      session=c['id'], signals=signals, mode=g['mode'], effort=g['effort'])
                  for g in c['gens'] if g['ts']]
     return rows, folders, stats
 
@@ -1281,9 +1380,9 @@ def build():
         ts, text = res.get('ts') or r['ts'], res.get('text', '')
         if TEST_RE.search(cmd):
             tests.append(dict(reply=r['id'], failed=bool(res.get('error') or FAIL_RE.search(text))))
-        reviewer = review_tool(cmd)
-        if reviewer:
-            reviews.append(dict(reply=r['id'], reviewer=reviewer))
+        reviewers = review_tools(cmd)
+        if reviewers:
+            reviews.append(dict(reply=r['id'], reviewer=reviewers[0], all=reviewers))
         if COMMIT_RE.search(cmd) and res and not res.get('error'):
             commit_cmds.append(dict(session=r['session'], ts=ts, elsewhere=commits_elsewhere(cmd)))
         for n in GH_PR_RE.findall(cmd):
@@ -1321,6 +1420,19 @@ def build():
         r['cost'] = cost(r['model'], r['usage'])
     for c in codex_rows:
         c['task'] = task_of(None, c['branch'], c['ts']) if c['project'] == SABLE else None
+    # Antigravity: the branch or PR its own commands named, else, for a review run, the task of the
+    # Claude Code reply that launched it with agy --print.
+    launches = sorted((reply_by_id[e['reply']]['ts'], reply_by_id[e['reply']]['task']) for e in reviews
+                      if 'agy' in e['all'] and reply_by_id[e['reply']]['task'])
+    starts = {}
+    for g in agy_rows:
+        starts[g['session']] = min(g['ts'], starts.get(g['session'], g['ts']))
+    for g in gemini_rows:
+        g['task'] = None
+        if g['project'] == SABLE:
+            g['task'] = antigravity_task(g.get('signals') or [], g['ts'], idx, pr_nums)
+            if not g['task'] and g['tool'] == 'Antigravity' and g['role'] == 'review':
+                g['task'] = launched_by(launches, starts[g['session']])
 
     # Cache rebuilds: a main-thread reply, not a session's first, that rewrote most of its context.
     by_session = defaultdict(list)
@@ -1344,7 +1456,7 @@ def build():
     daily = defaultdict(lambda: dict(replies=0, cost_usd=0.0, rebuilds=0, rebuild_tokens=0, **zero()))
     for r in replies:
         key = (local_day(r['ts']), 'Claude Code', r['model'], 'subagent' if r['sidechain'] else 'main', bool(r['task']),
-               r['project'])
+               r['project'], '', '')
         row = daily[key]
         row['replies'] += 1
         add(row, r['usage'])
@@ -1353,29 +1465,31 @@ def build():
             row['rebuilds'] += 1
             row['rebuild_tokens'] += r['usage']['cw5'] + r['usage']['cw1h']
     for c in codex_rows:
-        row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']), c['project'])]
+        row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']), c['project'], '', '')]
         row['replies'] += 1
         add(row, c['usage'])
     cloud = load_cloud()
     for c in cloud:  # whole days from the cloud, so no task, rebuilds or per-call detail
-        row = daily[(c['day'], 'Claude Code', norm_model(c['model']), 'main', False, c['project'])]
+        row = daily[(c['day'], 'Claude Code', norm_model(c['model']), 'main', False, c['project'], '', '')]
         row['replies'] += c['replies']
         add(row, c['usage'])
         row['cost_usd'] += cost(c['model'], c['usage']) or 0
-    for g in gemini_rows:  # no branch on record, so never attributed to a task
-        row = daily[(local_day(g['ts']), g['tool'], g['model'], g['role'], False, g['project'])]
+    for g in gemini_rows:
+        row = daily[(local_day(g['ts']), g['tool'], g['model'], g['role'], bool(g['task']), g['project'],
+                     g.get('mode') or '', g.get('effort') or '')]
         row['replies'] += 1
         add(row, g['usage'])
     daily_rows = []
-    for (day, tool, model, role, attributed, project), row in sorted(daily.items()):
+    for (day, tool, model, role, attributed, project, mode, effort), row in sorted(daily.items()):
         row = dict(row)
         row['cost_usd'] = round(row['cost_usd'], 4) if tool == 'Claude Code' else None
+        extra = dict(mode=mode, effort=effort or None) if tool == 'Antigravity' else {}
         daily_rows.append(dict(day=day, tool=tool, model=model, role=role, attributed=attributed, project=project,
-                               **row))
+                               **extra, **row))
 
     # ---- tasks
     acc = defaultdict(lambda: dict(
-        usage=zero(), codex=zero(), codex_review=zero(), cost=0.0, out_by_model=Counter(), replies=0,
+        usage=zero(), codex=zero(), codex_review=zero(), agy=zero(), agy_review=zero(), cost=0.0, out_by_model=Counter(), replies=0,
         subagent=0, tools=0, tests=0, test_fail=0, reviews=0, times=[], sessions=set()))
     for r in replies:
         if not r['task']:
@@ -1400,6 +1514,16 @@ def build():
         if c['role'] == 'agent':
             a['out_by_model'][c['model']] += c['usage']['output']
             a['times'].append(c['ts'])
+    for g in agy_rows:
+        if not g['task']:
+            continue
+        a = acc[g['task']]
+        if g['role'] == 'review':
+            add(a['agy_review'], g['usage'])
+            continue
+        add(a['agy'], g['usage'])
+        a['out_by_model'][g['model']] += g['usage']['output']
+        a['times'].append(g['ts'])
     for e in tests:
         task = reply_by_id[e['reply']]['task']
         if task:
@@ -1481,6 +1605,8 @@ def build():
             avg_context=round(context(u) / a['replies']) if a['replies'] else None,
             codex_tokens=sum(a['codex'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
             codex_review_tokens=sum(a['codex_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
+            agy_tokens=sum(a['agy'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
+            agy_review_tokens=sum(a['agy_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
         ))
     task_rows.sort(key=lambda t: (t['started'] or '', t['task']), reverse=True)
 

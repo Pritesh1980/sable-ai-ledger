@@ -275,6 +275,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
 .role { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 4.5rem; gap: 12px; align-items: center; font-size: var(--step--1); }
 .role-bar { height: 8px; border-radius: 4px; background: var(--m-codex); }
 .role-val { text-align: right; color: var(--ash); font-variant-numeric: tabular-nums; }
+.roles.agy .role-bar { background: var(--m-gemini); }
+.agy-copy { margin: 0; max-width: 78ch; line-height: 1.6; }
 
 /* footer */
 .foot { border-top: 1px solid var(--hairline); padding-block: clamp(48px, 7vw, 88px) clamp(40px, 6vw, 64px); display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(24px, 4vw, 64px); }
@@ -296,6 +298,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <a href="#tips">Tips</a>
       <a href="#timeline">Timeline</a>
       <a href="#models">The models</a>
+      <a href="#antigravity">Antigravity</a>
       <a href="#bill">The bill</a>
       <a href="#work">The work</a>
       <a href="#cycles">The cycles</a>
@@ -418,6 +421,35 @@ details.numbers[open] summary { margin-bottom: 10px; }
     </div>
   </section>
 
+  <section class="wrap spread" id="antigravity" aria-labelledby="agy-h" hidden>
+    <div class="spread-head">
+      <div>
+        <h2 id="agy-h" tabindex="-1">Inside Antigravity</h2>
+        <p>How Google's agent ran: in which mode, at what effort, and on which Sable tasks.</p>
+      </div>
+    </div>
+    <div class="spread-body">
+      <p class="agy-copy" id="agy-copy"></p>
+      <div>
+        <p class="chart-title">Tokens per week, by mode</p>
+        <p class="chart-note">In two-model mode Antigravity splits each job: Gemini 4 Argon plans, then Gemini 4 Hydrogen carries out the steps. One model is everything run on a single model picked by hand. Across all projects, from the first busy week; earlier weeks were light. Point at a bar for the numbers.</p>
+        <div class="chart" id="chart-agy" style="height: 280px" role="img" aria-label="Antigravity tokens per week, split into planning, carrying out and one-model work"></div>
+      </div>
+      <div class="pair">
+        <div>
+          <p class="chart-title">Effort setting</p>
+          <p class="chart-note">Share of tokens at each effort level chosen in the model picker. Two-model mode has no setting of its own.</p>
+          <div class="roles agy" id="agy-effort"></div>
+        </div>
+        <div>
+          <p class="chart-title">Building or reviewing</p>
+          <p class="chart-note">Building is work in the Antigravity app or an agy session you drove. Reviewing is agy --print, mostly the critiques Claude Code asks for.</p>
+          <div class="roles agy" id="agy-roles"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="wrap spread" id="bill" aria-labelledby="bill-h">
     <div class="spread-head">
       <div>
@@ -452,7 +484,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-body">
       <div>
         <p class="chart-title">Tokens per task, by lead model</p>
-        <p class="chart-note">Each dot is one task, placed by every token Claude Code and Codex spent on it. The axis is logarithmic, so each gridline is ten times the last. Point at a dot to see the task.</p>
+        <p class="chart-note">Each dot is one task, placed by every token Claude Code, Codex and Antigravity spent building it. The axis is logarithmic, so each gridline is ten times the last. Point at a dot to see the task.</p>
         <div class="chart" id="chart-swarm" style="height: 420px"></div>
       </div>
       <div>
@@ -564,8 +596,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div><dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads, and output including thinking.</dd></div>
       <div><dt>Cloud sessions</dt><dd>Claude Code runs in the cloud (claude.ai/code) leave no logs on the Mac. Their token counts are imported by hand from the sessions record, by day, with no task attached. So far: two sessions, 31 Oct to 8 Nov.</dd></div>
       <div><dt>Project</dt><dd>The folder a run happened in: Sable for its checkout, its worktrees and Claude's scratch folders for it, else the folder under ~/code. An Antigravity run with no folder on record is Sable's when its request names Sable, else Unknown.</dd></div>
-      <div><dt>Task</dt><dd>A Sable GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session.</dd></div>
-      <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code and Codex agent work.</dd></div>
+      <div><dt>Task</dt><dd>A Sable GitHub PR. Replies on a feature branch belong to its PR. Replies on main belong to the next commit or PR command in the same session. An Antigravity call belongs to the branch or PR its own commands last named, or, for an agy --print review, to the task of the Claude Code reply that started it.</dd></div>
+      <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code, Codex and Antigravity work other than reviews.</dd></div>
       <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again. Most come after a gap of an hour or more, when the prompt cache has expired; fewer follow a compaction.</dd></div>
       <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
       <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
@@ -642,7 +674,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
     { id: 'agy', name: 'Antigravity', color: cssv('--m-gemini') },
   ];
   const GROUP = Object.fromEntries(GROUPS.map((g) => [g.id, g]));
-  const groupOf = (m) => (!m ? 'other' : m.startsWith('gpt-') || m.startsWith('codex') ? 'codex' : GROUP[m] ? m : 'other');
+  const groupOf = (m) => (!m ? 'other' : m.startsWith('gpt-') || m.startsWith('codex') ? 'codex'
+    : m.startsWith('gemini') ? 'agy' : GROUP[m] ? m : 'other');
 
   // Makers, for "The models" and the monthly chart: Claude in bone and OpenAI in Codex's teal, as the tools are
   // elsewhere, and Gemini in violet. Colour here follows the maker; each model is named on its own row.
@@ -658,6 +691,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     : r.model.startsWith('gpt-') || r.model.startsWith('codex') || r.tool === 'Codex' ? 'openai'
     : r.tool === 'Claude Code' ? 'claude' : 'gemini');
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   // claude-opus-5-5 -> Opus 5.5, gpt-6.1-sol -> GPT-6.1 Sol, gemini-3.6-flash -> Gemini 3.6 Flash
   const modelName = (m) => {
     let x = m.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?$/);
@@ -772,7 +806,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const w1 = week(7, 14);
 
     const tasks = D.tasks.map((t) => Object.assign({}, t, {
-      tokens: t.input + t.cache_write + t.cache_read + t.output + t.codex_tokens,
+      tokens: t.input + t.cache_write + t.cache_read + t.output + t.codex_tokens + (t.agy_tokens || 0),
       group: t.primary_model ? groupOf(t.primary_model) : null,
     }));
     const shipped = tasks.filter((t) => t.shipped && t.cost_usd > 0);
@@ -809,7 +843,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
 
     // figures
     const change = S.w1.cost ? S.w0.cost / S.w1.cost - 1 : null;
-    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
     odometer($('#fig-total'), F.usd0(S.total));
     $('#fig-total-label').textContent = 'Claude cost since ' + F.day(S.firstDay);
     $('#fig-total-note').textContent = F.usd0(S.rereading) + ' reading and caching context, ' + F.usd0(S.writing) + ' output and thinking.';
@@ -847,6 +880,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     tipsList(D);
     charts.push(timeline(D));
     charts.push(perTask(S));
+    charts.push(antigravity(D, S));
 
     let pending = 0;
     window.addEventListener('resize', () => {
@@ -1562,7 +1596,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const MIN = 3;
     const shipped = S.tasks.filter((t) => t.shipped && t.cost_usd > 0 && t.primary_model && t.primary_model.startsWith('claude-'));
     if (!shipped.length) return null;
-    const codexLed = S.tasks.filter((t) => t.shipped && t.primary_model && groupOf(t.primary_model) === 'codex').length;
+    const ledBy = (g) => S.tasks.filter((t) => t.shipped && t.primary_model && groupOf(t.primary_model) === g).length;
+    const codexLed = ledBy('codex'), agyLed = ledBy('agy');
     const FG = '#efe9dc', BG = '#131110';
     const chart = make('chart-pertask');
     const rowsFor = (keep) => {
@@ -1588,8 +1623,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
           + (rows.length > 1 && hi !== top ? ' Dearest was ' + hi.name + ' at ' + F.usd(hi.avg) + '.' : '') + ' '
         : label + ': too few tasks per model to compare. ')
         + (few.length ? 'Left out with fewer than ' + MIN + ' tasks: ' + listed(few.map((r) => r.name + ' (' + r.n + ', ' + F.usd(r.avg) + ' average)')) + '. ' : '')
-        + 'Codex and Gemini are not shown: there are no list prices for them here, Codex led only ' + codexLed
-        + (codexLed === 1 ? ' shipped task' : ' shipped tasks') + ', and Antigravity work is not tied to tasks.';
+        + 'Codex and Antigravity are not shown, as there are no list prices for their models here. Codex led '
+        + plural(codexLed, 'shipped task', 'shipped tasks') + ' and Antigravity ' + plural(agyLed, 'shipped task', 'shipped tasks') + '.';
       $('#chart-pertask').style.height = (rows.length * 46 + 40) + 'px';
       chart.resize();
       chart.setOption(Object.assign(base(), {
@@ -1629,6 +1664,96 @@ details.numbers[open] summary { margin-bottom: 10px; }
     }));
     $('#pertask').hidden = false;
     show('all');
+    return chart;
+  }
+
+
+  // ---------------------------------------------------------------- inside Antigravity
+  function antigravity(D, S) {
+    const rows = D.daily.filter((r) => r.tool === 'Antigravity');
+    if (!rows.length || !rows.some((r) => 'mode' in r)) return null;
+    const tok = (r) => r.input + r.cw5 + r.cw1h + r.cache_read + r.output;
+    const MODES = [
+      { id: 'plan', name: 'Planning (Argon)', color: cssv('--m-gemini') },
+      { id: 'execute', name: 'Carrying out (Hydrogen)', color: '#c9bff5' },
+      { id: 'single', name: 'One model', color: '#6f6a60' },
+    ];
+    const weeks = [...new Set(rows.map((r) => monday(r.day)))].sort();
+    const cell = new Map();
+    for (const r of rows) {
+      const k = monday(r.day) + '|' + (r.mode || 'single');
+      cell.set(k, (cell.get(k) || 0) + tok(r));
+    }
+    const cat = (w) => 'w/c ' + F.day(w);
+    const weekTotal = (w) => sum(MODES.map((m) => cell.get(w + '|' + m.id) || 0));
+    // Before October Antigravity was barely used: start at the first week with a twentieth of the busiest week's tokens.
+    const busiest = Math.max(...weeks.map(weekTotal));
+    weeks.splice(0, Math.max(0, weeks.findIndex((w) => weekTotal(w) >= busiest / 20)));
+    const chart = make('chart-agy');
+    chart.setOption(Object.assign(base(), {
+      grid: { left: 52, right: 16, top: window.innerWidth < 640 ? 56 : 36, bottom: 36 },
+      legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, itemGap: 16, textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
+      tooltip: Object.assign({}, TIP, {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (ps) => {
+          const w = weeks[ps[0].dataIndex], all = weekTotal(w) || 1;
+          return '<b>' + esc(ps[0].axisValue) + '</b>, ' + F.big(all) + ' tokens'
+            + ps.filter((p) => p.value).map((p) => '<br>' + p.marker + esc(p.seriesName) + ' ' + F.big(p.value) + ' (' + F.pct(p.value / all) + ')').join('');
+        },
+      }),
+      xAxis: { type: 'category', data: weeks.map(cat), axisLine: { lineStyle: { color: '#35312b' } }, axisTick: { show: false }, axisLabel: AXIS_LABEL },
+      yAxis: { type: 'value', splitNumber: 4, axisLine: { show: false }, axisTick: { show: false }, axisLabel: Object.assign({}, AXIS_LABEL, { formatter: (v) => F.big(v) }), splitLine: { lineStyle: { color: '#35312b' } } },
+      series: MODES.map((m, i) => ({
+        type: 'bar', name: m.name, stack: 'mode', barMaxWidth: 36,
+        itemStyle: { color: m.color, borderColor: '#131110', borderWidth: 1, borderRadius: i === 0 ? [3, 3, 0, 0] : 0 },
+        data: weeks.map((w) => cell.get(w + '|' + m.id) || 0),
+      })).reverse(),
+    }));
+
+    const bars = (id, entries) => {
+      const total = sum(entries.map((e) => e[1])) || 1;
+      const max = Math.max(...entries.map((e) => e[1]), 1);
+      $(id).replaceChildren(...entries.filter((e) => e[1] > 0).map(([name, v]) => {
+        const row = el('div', 'role');
+        const track = el('div');
+        const bar = el('div', 'role-bar');
+        bar.style.width = (v / max) * 100 + '%';
+        track.appendChild(bar);
+        const val = el('span', 'role-val', F.pct(v / total));
+        val.title = F.big(v) + ' tokens';
+        row.append(el('span', null, name), track, val);
+        return row;
+      }));
+    };
+    const by = (f) => { const m = new Map(); for (const r of rows) m.set(f(r), (m.get(f(r)) || 0) + tok(r)); return m; };
+    const eff = by((r) => (r.mode === 'single' ? r.effort || 'Not recorded' : 'Two-model mode'));
+    bars('#agy-effort', ['High', 'Medium', 'Low', 'Not recorded', 'Two-model mode'].map((k) => [k, eff.get(k) || 0]));
+    const role = by((r) => r.role);
+    bars('#agy-roles', [['Building', role.get('agent') || 0], ['Reviewing', role.get('review') || 0]]);
+
+    // The words: totals, the switch to two-model mode, and Sable tasks.
+    const total = sum(rows.map(tok)), calls = sum(rows.map((r) => r.replies));
+    const first = rows.reduce((a, r) => (r.day < a ? r.day : a), rows[0].day);
+    const two = rows.filter((r) => r.mode === 'plan' || r.mode === 'execute');
+    const twoFrom = two.length ? two.reduce((a, r) => (r.day < a ? r.day : a), two[0].day) : null;
+    const since = (d) => rows.filter((r) => r.day >= d);
+    const copy = ['Since ' + F.day(first) + ', Antigravity read and wrote ', el('b', null, F.big(total)), ' tokens in ' + F.int(calls) + ' calls. '];
+    if (twoFrom) {
+      const after = since(twoFrom), afterTok = sum(after.map(tok)) || 1;
+      const plan = sum(after.filter((r) => r.mode === 'plan').map(tok)), exec = sum(after.filter((r) => r.mode === 'execute').map(tok));
+      copy.push('Two-model mode first ran on ' + F.dayLong(twoFrom) + ' and has taken ', el('b', null, F.pct((plan + exec) / afterTok)),
+        ' of its tokens since. Within it, Hydrogen carrying out the steps took ' + F.pct(exec / ((plan + exec) || 1)) + ' and Argon planning the rest. ');
+    }
+    const sable = rows.filter((r) => r.project === 'Sable' && r.day >= S.firstDay);
+    const sableTok = sum(sable.map(tok));
+    const led = S.tasks.filter((t) => t.shipped && t.primary_model && groupOf(t.primary_model) === 'agy');
+    const reviewed = S.tasks.filter((t) => t.agy_review_tokens > 0);
+    if (sableTok) {
+      copy.push('Of its Sable tokens since ' + F.day(S.firstDay) + ', ', el('b', null, F.pct(sum(sable.filter((r) => r.attributed).map(tok)) / sableTok)),
+        ' are tied to a task. It led ' + plural(led.length, 'shipped task', 'shipped tasks') + ' and reviewed ' + plural(reviewed.length, 'task', 'tasks') + '.');
+    }
+    $('#agy-copy').replaceChildren(...copy);
+    $('#antigravity').hidden = false;
     return chart;
   }
 

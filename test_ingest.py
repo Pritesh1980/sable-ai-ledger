@@ -185,6 +185,15 @@ class Reviews(unittest.TestCase):
             self.assertIsNone(ing.review_tool(cmd), cmd)
 
 
+class ReviewTools(unittest.TestCase):
+    def test_one_command_can_launch_both_reviewers(self):
+        cmd = ('S=/tmp/x\n(timeout 900 codex exec "Review" < /dev/null > $S/c.txt 2>&1) &\n'
+               '(timeout 900 agy --print "$P2" < /dev/null > $S/a.txt 2>&1) &\nwait')
+        self.assertEqual(ing.review_tools(cmd), ['codex', 'agy'])
+        self.assertEqual(ing.review_tool(cmd), 'codex')
+        self.assertEqual(ing.review_tools('git status'), [])
+
+
 class OtherRepoCommits(unittest.TestCase):
     def setUp(self):
         patches = [mock.patch.object(ing, 'HOME', '/Users/me'),
@@ -460,6 +469,57 @@ class Antigravity(unittest.TestCase):
         self.assertEqual(c['request'], 'Design review of Sable, a tattoo PWA')
         # each generation is dated by the first step of its turn, else by the conversation's start
         self.assertEqual([int(g['ts'].timestamp()) for g in c['gens']], [1790000050, 1790090000, 1790000000])
+
+
+class AntigravityTasks(unittest.TestCase):
+    @staticmethod
+    def step(at, *cmds):
+        return dict(type='PLANNER_RESPONSE', created_at=at,
+                    tool_calls=[dict(name='run_command', args=dict(CommandLine='"%s"' % c)) for c in cmds])
+
+    def test_mode_and_effort_come_from_the_model_name(self):
+        self.assertEqual(ing.antigravity_model('Orchestrator (Argon)'), 'gemini-4-argon')
+        self.assertEqual(ing.antigravity_model('Gemini 4 Hydrogen (Orchestrator)'), 'gemini-4-hydrogen')
+        self.assertEqual([ing.antigravity_mode(n) for n in ('Orchestrator (Argon)', 'Gemini 4 Hydrogen (Orchestrator)',
+                                                              'Gemini 4 Argon (High)', None)],
+                         ['plan', 'execute', 'single', 'single'])
+        self.assertEqual([ing.antigravity_effort(n) for n in ('Gemini 3.6 Flash (Low)', 'Orchestrator (Argon)', None)],
+                         ['Low', None, None])
+
+    def test_signals_come_from_branch_and_pr_commands(self):
+        recs = [
+            self.step('2026-11-10T10:00:00Z', 'git worktree add .worktrees/x -b feat/x-12 origin/main'),
+            self.step('2026-11-10T11:00:00Z', 'gh pr merge 12 --squash'),
+            self.step('2026-11-10T12:00:00Z', 'git checkout main && git pull', 'git push -u origin HEAD'),
+            dict(type='USER_INPUT', created_at='2026-11-10T13:00:00Z', content='look at PR #99'),
+            self.step('2026-11-10T14:00:00Z', 'git checkout -- src/App.jsx'),
+        ]
+        self.assertEqual(ing.antigravity_signals(recs), [
+            (t('2026-11-10T10:00:00'), 'feat/x-12', None),
+            (t('2026-11-10T11:00:00'), None, 12),
+            (t('2026-11-10T12:00:00'), 'main', None),
+        ])
+
+    def test_a_call_takes_the_latest_signal_else_the_first(self):
+        prs = [dict(number=12, headRefName='feat/x-12', createdAt='2026-11-10T09:00:00Z', mergedAt='2026-11-10T11:00:00Z',
+                    closedAt='2026-11-10T11:00:00Z')]
+        idx = ing.branch_index(prs)
+        sig = [(t('2026-11-10T10:00:00'), 'feat/x-12', None), (t('2026-11-10T12:00:00'), 'main', None),
+               (t('2026-11-10T13:00:00'), None, 40), (t('2026-11-10T14:00:00'), 'fix/no-pr', None)]
+        task = lambda at: ing.antigravity_task(sig, t(at), idx, {12, 40})
+        self.assertEqual(task('2026-11-10T09:50:00'), 'PR #12')  # before any signal: the first
+        self.assertEqual(task('2026-11-10T10:30:00'), 'PR #12')
+        self.assertIsNone(task('2026-11-10T12:30:00'))  # back on main
+        self.assertEqual(task('2026-11-10T13:30:00'), 'PR #40')
+        self.assertIsNone(task('2026-11-10T14:30:00'))  # a branch with no PR is not a task
+        self.assertIsNone(ing.antigravity_task([], t('2026-11-10T10:00:00'), idx, {12}))
+
+    def test_a_review_run_takes_the_task_of_the_claude_reply_that_launched_it(self):
+        launches = [(t('2026-11-10T10:00:00'), 'PR #12'), (t('2026-11-10T10:20:00'), 'PR #13')]
+        self.assertEqual(ing.launched_by(launches, t('2026-11-10T10:00:20')), 'PR #12')
+        self.assertEqual(ing.launched_by(launches, t('2026-11-10T10:21:00')), 'PR #13')
+        self.assertIsNone(ing.launched_by(launches, t('2026-11-10T09:00:00')))
+        self.assertIsNone(ing.launched_by(launches, t('2026-11-10T11:00:00')))  # too long after
 
 
 class GeminiCli(unittest.TestCase):
