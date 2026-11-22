@@ -2029,10 +2029,6 @@ details.numbers[open] summary { margin-bottom: 10px; }
       return m < 60 ? Math.max(1, m) + ' min' : m < 2880 ? (Math.round(m / 6) / 10) + ' hours' : Math.round(m / 1440) + ' days';
     };
     const sub = (html) => '<div style="color:#a8a294;margin-top:4px;max-width:280px;white-space:normal">' + html + '</div>';
-    const titleOf = (k) => {
-      const name = W.tasks[k], t = info.get(name);
-      return t && t.title && t.title !== name ? t.title : null;
-    };
     const narrow = window.innerWidth < 640;
 
     // A session's calls with no gap over IDLE make one stretch. Without session ids, tool and task stand in.
@@ -2322,8 +2318,17 @@ details.numbers[open] summary { margin-bottom: 10px; }
     // ---- the relay for one task
     const relay = make('chart-relay');
     const pick = $('#relay-pick');
-    pick.replaceChildren(...order.map((k) => {
-      const o = el('option', null, W.tasks[k] + (titleOf(k) ? ': ' + titleOf(k) : ''));
+    // No PR names: a task is known by when it started and which AIs passed it along.
+    const labelOf = (k) => {
+      const { parts } = partsOf(k);
+      if (!parts.length) return 'Task';
+      const chain = [];
+      for (const p of parts) if (chain[chain.length - 1] !== p.tool) chain.push(p.tool);
+      return dayOf(parts[0].from) + ', ' + clock(parts[0].from) + ': ' + chain.map((t) => TOOLS[t].name).join(' → ');
+    };
+    const startOf = (k) => { const { parts } = partsOf(k); return parts.length ? parts[0].from : 0; };
+    pick.replaceChildren(...order.slice().sort((a, b) => startOf(b) - startOf(a)).map((k) => {
+      const o = el('option', null, labelOf(k));
       o.value = k;
       return o;
     }));
@@ -2336,7 +2341,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       const lanes = TOOLS.map((_, i) => i).filter((i) => parts.some((p) => p.tool === i));
       const laneOf = (tool) => lanes.indexOf(tool);
       pick.value = String(k);
-      $('#relay-title').textContent = 'Relay: ' + W.tasks[k] + (titleOf(k) ? ', ' + titleOf(k) : '');
+      $('#relay-title').textContent = 'Relay: task started ' + dayOf(parts[0].from) + ', ' + clock(parts[0].from);
       const last = ms_[ms_.length - 1];
       const merged = !last ? ' It has no merge in these 30 days.'
         : (last[4] === 'pr' ? ' Its PR merged into another branch on ' : ' It merged to main on ') + dayOf(last[0]) + ' at ' + clock(last[0]) + '.';
