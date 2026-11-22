@@ -1489,7 +1489,7 @@ def build():
 
     # ---- tasks
     acc = defaultdict(lambda: dict(
-        usage=zero(), codex=zero(), codex_review=zero(), agy=zero(), agy_review=zero(), cost=0.0, out_by_model=Counter(), replies=0,
+        usage=zero(), codex=zero(), codex_review=zero(), gemini=zero(), gemini_review=zero(), cost=0.0, out_by_model=Counter(), replies=0,
         subagent=0, tools=0, tests=0, test_fail=0, reviews=0, times=[], sessions=set()))
     for r in replies:
         if not r['task']:
@@ -1514,14 +1514,14 @@ def build():
         if c['role'] == 'agent':
             a['out_by_model'][c['model']] += c['usage']['output']
             a['times'].append(c['ts'])
-    for g in agy_rows:
-        if not g['task']:
+    for g in gemini_rows:  # Gemini models only: Antigravity can run Claude too
+        if not g['task'] or not g['model'].startswith('gemini'):
             continue
         a = acc[g['task']]
         if g['role'] == 'review':
-            add(a['agy_review'], g['usage'])
+            add(a['gemini_review'], g['usage'])
             continue
-        add(a['agy'], g['usage'])
+        add(a['gemini'], g['usage'])
         a['out_by_model'][g['model']] += g['usage']['output']
         a['times'].append(g['ts'])
     for e in tests:
@@ -1605,8 +1605,8 @@ def build():
             avg_context=round(context(u) / a['replies']) if a['replies'] else None,
             codex_tokens=sum(a['codex'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
             codex_review_tokens=sum(a['codex_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
-            agy_tokens=sum(a['agy'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
-            agy_review_tokens=sum(a['agy_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
+            gemini_tokens=sum(a['gemini'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
+            gemini_review_tokens=sum(a['gemini_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
         ))
     task_rows.sort(key=lambda t: (t['started'] or '', t['task']), reverse=True)
 

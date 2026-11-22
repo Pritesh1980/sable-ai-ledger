@@ -5,7 +5,7 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 154k tokens on average in the last 7 days (210k the week before). Re-reading that context was 44% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 157k tokens on average in the last 7 days (210k the week before). Re-reading that context was 44% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
@@ -22,20 +22,20 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 76% on the week before",
-   "detail": "$52 in the last 7 days, against $216. Busiest day: Fri 20 Nov, at $14."
+   "title": "Claude spend down 75% on the week before",
+   "detail": "$55 in the last 7 days, against $216. Busiest day: Fri 20 Nov, at $14."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Codex use down 84%",
-   "detail": "98 calls in the last 7 days, against 613 the week before."
+   "title": "Codex use down 80%",
+   "detail": "121 calls in the last 7 days, against 613 the week before."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Antigravity use down 57%",
-   "detail": "143 calls in the last 7 days, against 335 the week before."
+   "title": "Antigravity use down 51%",
+   "detail": "164 calls in the last 7 days, against 335 the week before."
   }
  ]
 }
