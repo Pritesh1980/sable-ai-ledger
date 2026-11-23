@@ -11,7 +11,7 @@
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "10 cache rebuilds cost $8.93 in the last 7 days (27 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "12 cache rebuilds cost $10 in the last 7 days (27 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
@@ -22,20 +22,14 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 75% on the week before",
-   "detail": "$55 in the last 7 days, against $216. Busiest day: Fri 20 Nov, at $14."
+   "title": "Claude spend down 72% on the week before",
+   "detail": "$61 in the last 7 days, against $216. Busiest day: Fri 20 Nov, at $14."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Codex use down 80%",
-   "detail": "121 calls in the last 7 days, against 613 the week before."
-  },
-  {
-   "kind": "trend",
-   "area": "tools",
-   "title": "Antigravity use down 51%",
-   "detail": "164 calls in the last 7 days, against 335 the week before."
+   "title": "Codex use down 68%",
+   "detail": "194 calls in the last 7 days, against 613 the week before."
   }
  ]
 }
