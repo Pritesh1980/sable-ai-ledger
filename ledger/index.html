@@ -367,13 +367,13 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="timeline-h" tabindex="-1">Who worked when</h2>
-        <p id="tl-note">Sable work by Claude Code, Codex and Antigravity over the last 30 days.</p>
+        <p id="tl-note">Sable work by Claude Code, Codex and Antigravity.</p>
       </div>
       <div class="seg" role="group" aria-label="Period shown" id="tl-view"></div>
     </div>
     <div>
-      <p class="chart-note">A git graph with the AIs as branches. Claude Code's lane sits above main, Codex and Antigravity below. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line to see which AIs worked on it and when it merged, or click one to see its relay below. Drag the slider, or pinch and scroll, to zoom.</p>
-      <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Every Claude Code, Codex and Antigravity session on Sable over the last 30 days, with merges to main"></div>
+      <p class="chart-note">A git graph with the AIs as branches. Claude Code's lane sits above main, Codex and Antigravity below. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line to see which AIs worked on it and when it merged, or click one to see its relay below. It opens on the latest few days, as many as it takes to show about ten tasks; the buttons show a longer stretch. Drag the slider, or pinch and scroll, to zoom.</p>
+      <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Every Claude Code, Codex and Antigravity session on Sable, with merges to main"></div>
       <ul class="legend" id="tl-legend" style="margin-top: 10px"></ul>
     </div>
     <div class="relay" id="relay">
@@ -2203,28 +2203,24 @@ details.numbers[open] summary { margin-bottom: 10px; }
       return out.sort((a, b) => a.from - b.from);
     }
 
-    const all = stretches(calls);
-    const t0 = calls[0][iT], t1 = calls[calls.length - 1][iT];
-    const merges = (W.merges || []).filter((m) => m[0] >= t0 - 86400 && m[0] <= t1 + 86400);
-
-    const tasksSeen = new Map();
-    for (const s of all) for (const [k] of s.tasks) tasksSeen.set(k, Math.max(tasksSeen.get(k) || 0, s.to));
-    const order = [...tasksSeen].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+    const tEnd = calls[calls.length - 1][iT];
+    const allMerges = W.merges || [];
     const mergesOf = (k) => {
       const name = W.tasks[k];
       const pr = name.match(/^PR #(\d+)$/);
       const sha = name.match(/^Commit (\w+)$/);
-      const found = pr ? merges.filter((m) => m[3] === +pr[1])
-        : sha ? merges.filter((m) => m[1].startsWith(sha[1]) || sha[1].startsWith(m[1])) : [];
+      const found = pr ? allMerges.filter((m) => m[3] === +pr[1])
+        : sha ? allMerges.filter((m) => m[1].startsWith(sha[1]) || sha[1].startsWith(m[1])) : [];
       // A PR merged into another branch never lands on main under its own number: use the PR's merge time.
       const t = info.get(name);
       if (pr && !found.length && t && t.shipped_at) return [[Math.round(Date.parse(t.shipped_at) / 1000), '', t.title, +pr[1], 'pr']];
       return found;
     };
-    // A task's stretches up to its merge; calls booked to it after the merge are counted, not drawn.
-    function partsOf(k) {
+    // A task's stretches up to its merge, from the given calls (every Sable call by default); calls booked to it
+    // after the merge are counted, not drawn.
+    function partsOf(k, rows) {
       const mk = mergesOf(k);
-      const every = stretches(calls.filter((r) => r[iTask] === k));
+      const every = stretches((rows || calls).filter((r) => r[iTask] === k));
       const cutoff = mk.length ? mk[mk.length - 1][0] + 3600 : Infinity;
       const parts = every.filter((p) => p.from <= cutoff);
       const later = sum(every.filter((p) => p.from > cutoff).map((p) => p.n));
@@ -2241,76 +2237,11 @@ details.numbers[open] summary { margin-bottom: 10px; }
       const verb = rev === n ? 'reviewed' : rev ? 'built and reviewed' : 'built';
       return TOOLS[i].name + ' ' + verb + ' in ' + ps.length + (ps.length === 1 ? ' stretch' : ' stretches') + ' (' + F.int(n) + ' calls)';
     });
+    // Every task seen in the 30 days, latest first, for the relay's picker.
+    const lastSeen = new Map();
+    for (const r of calls) if (r[iTask] >= 0) lastSeen.set(r[iTask], r[iT]);
+    const order = [...lastSeen].sort((x, y) => y[1] - x[1]).map(([k]) => k);
 
-    // ---- branches: one per task, cut into segments wherever the work moves to another AI
-    const branches = [];
-    for (const k of order) {
-      const { parts, merges: mk } = partsOf(k);
-      if (!parts.length) continue;
-      const last = mk[mk.length - 1];
-      const end = Math.max(...parts.map((p) => p.end));
-      const mergeAt = last ? Math.max(last[0], end + 60) : null;
-      const segs = [];
-      for (const p of parts) {
-        const s = segs[segs.length - 1];
-        if (s && s.tool === p.tool) s.parts.push(p);
-        else segs.push({ tool: p.tool, from: p.from, parts: [p] });
-      }
-      segs.forEach((s, i) => {
-        const own = Math.max(...s.parts.map((p) => p.end));
-        s.leave = i + 1 < segs.length ? segs[i + 1].from : mergeAt != null ? mergeAt : own;
-        s.to = Math.max(s.leave, own);
-      });
-      branches.push({ k, segs, parts, merge: last, mergeAt });
-    }
-    const loose = all.filter((s) => s.task < 0);
-
-    // Pack each lane's segments into tracks, as a git graph gives each live branch its own column.
-    const GAP = 5400;
-    const tracks = TOOLS.map(() => []);
-    branches.flatMap((b) => b.segs).sort((a, b) => a.from - b.from).forEach((s) => {
-      const ends = tracks[s.tool];
-      let i = ends.findIndex((e) => e + GAP < s.from);
-      if (i < 0) i = ends.length;
-      s.prevEnd = ends[i] == null ? -Infinity : ends[i];
-      ends[i] = s.to;
-      s.track = i;
-    });
-    // Claude Code sits above main, the others below; each lane's first track is the one nearest main.
-    let MAIN = 0.6;
-    let y = 0.2;
-    const lanes = [];
-    TOOLS.forEach((t, i) => {
-      if (i === 1) { MAIN = y + 0.9; y = MAIN + 0.9; }
-      const nT = tracks[i].length, hasLoose = loose.some((s) => s.tool === i);
-      if (!nT && !hasLoose) return;
-      const lane = { tool: i, top: y, above: i === 0 };
-      y += 0.95;
-      if (hasLoose) { lane.loose = y + 0.5; y += 1; }
-      lane.first = y + 0.5;
-      lane.n = nT;
-      y += nT + 0.35;
-      lane.bottom = y;
-      lanes[i] = lane;
-    });
-    if (MAIN < 0.9) { MAIN = 0.6; } // no Claude Code lane: main stays at the top
-    const ROWS = y;
-    const trackY = (lane, k) => (lane.above ? lane.first + lane.n - 1 - k : lane.first + k);
-    for (const b of branches) for (const s of b.segs) s.y = trackY(lanes[s.tool], s.track);
-
-    // The note: how much of the work overlapped.
-    const hours = new Map();
-    for (const r of calls) {
-      const h = Math.floor(r[iT] / 3600);
-      hours.set(h, (hours.get(h) || 0) | (1 << r[iTool]));
-    }
-    const sharedHours = [...hours.values()].filter((v) => v & (v - 1)).length;
-    const perTool = TOOLS.map((_, i) => all.filter((s) => s.tool === i).length);
-    const toMain = branches.filter((b) => b.merge && b.merge[4] !== 'pr').length;
-    $('#tl-note').textContent = 'Sable work from ' + F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1)) + ': '
-      + F.int(branches.length) + ' tasks, of which ' + toMain + ' merged to main, across '
-      + listed(TOOLS.map((t, i) => perTool[i] ? F.int(perTool[i]) + ' ' + t.name + ' sessions' : null).filter(Boolean))
-      + '. In ' + sharedHours + ' of the ' + hours.size + ' hours with any activity, two or more AIs were at work.';
     const dot = (fill, stroke) => {
       const s = swatch(fill);
       s.style.borderRadius = '50%';
@@ -2318,21 +2249,13 @@ details.numbers[open] summary { margin-bottom: 10px; }
       return s;
     };
     const li = (...kids) => { const n = el('li'); n.append(...kids); return n; };
-    $('#tl-legend').replaceChildren(
-      ...TOOLS.filter((_, i) => perTool[i]).map((t) => li(swatch(t.color), t.name)),
-      li(dot(null, ASH), 'Hollow: reviewing'),
-      li(dot(FG), 'Merged to main'),
-      li(dot(null, FG), 'PR merged into another branch'),
-      (() => { const s = swatch(ASH); s.style.opacity = 0.4; return li(s, 'Faint: work not tied to a task'); })()
-    );
 
-    // ---- the graph
+    // ---- the graph, drawn for one period at a time so its lanes are only as deep as that period needs
     const node = $('#chart-timeline');
     const ROW_PX = narrow ? 13 : 14;
-    node.style.height = Math.round(20 + ROWS * ROW_PX + 84) + 'px';
     node.setAttribute('aria-label', 'Git graph of Sable work: each task forks from main into the lane of the AI that worked on it and joins main where it merged');
     const chart = make('chart-timeline');
-    let lit = null, focused = false;
+    let lit = null, focused = false, branches = [];
     const R = 14; // the horizontal reach of a curve between lanes, in pixels
     const curve = (x1, y1, x2, y2, stroke, lineWidth, opacity) => ({
       type: 'bezierCurve', silent: false,
@@ -2346,122 +2269,213 @@ details.numbers[open] summary { margin-bottom: 10px; }
     };
     const branchData = () => branches.map((b, i) => ({ value: [ms(b.segs[0].from), ms(b.mergeAt || b.segs[b.segs.length - 1].to)], i }));
 
-    chart.setOption(Object.assign(base(), {
-      animation: false,
-      grid: { left: 8, right: 8, top: 14, bottom: 84 },
-      tooltip: Object.assign({}, TIP, {
-        trigger: 'item',
-        formatter: (p) => {
-          if (p.seriesId === 'merges') {
-            const m = p.data.m;
-            return '<b>Merged to main</b> ' + dayOf(m[0]) + ', ' + clock(m[0])
-              + '<div style="max-width:280px;white-space:normal;margin-top:4px">' + esc(m[2]) + '</div>' + sub(esc(m[1]));
-          }
-          if (p.seriesId === 'loose') {
-            const s = p.data.s;
-            return '<b>Not tied to a task</b>' + sub(TOOLS[s.tool].name + ', ' + dayOf(s.from) + ' ' + clock(s.from) + ' to ' + clock(s.to)
-              + ' (' + span(s.to - s.from) + ')') + sub(s.n + (s.n === 1 ? ' call' : ' calls') + (s.reviewing ? ', reviewing' : ''));
-          }
-          if (p.seriesId !== 'branches') return '';
-          const b = branches[p.data.i];
-          const m = b.merge;
-          const end = !m ? 'Not merged in these 30 days'
-            : (m[4] === 'pr' ? 'PR merged into another branch ' : 'Merged to main ') + dayOf(m[0]) + ', ' + clock(m[0]);
-          return '<b>Started ' + dayOf(b.parts[0].from) + ', ' + clock(b.parts[0].from) + '</b>'
-            + sub(whoDid(b.parts).map(esc).join('<br>')) + sub(end) + sub('Click to see its relay below');
-        },
-      }),
-      xAxis: {
-        type: 'time', min: ms(t0 - 3600), max: ms(t1 + 3600), axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: Object.assign({}, AXIS_LABEL, { hideOverlap: true }), splitLine: { show: true, lineStyle: { color: LINE, opacity: 0.35 } },
-      },
-      yAxis: { type: 'value', inverse: true, min: 0, max: ROWS, show: false },
-      dataZoom: [
-        { type: 'inside', filterMode: 'none', minValueSpan: 2 * 3600e3 },
-        { type: 'slider', filterMode: 'none', height: 26, bottom: 16, minValueSpan: 2 * 3600e3, borderColor: LINE, backgroundColor: 'transparent',
-          fillerColor: 'rgba(239,233,220,0.08)', handleStyle: { color: ASH, borderColor: ASH }, moveHandleStyle: { color: LINE },
-          dataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } }, selectedDataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } },
-          textStyle: { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11 }, labelFormatter: (v) => F.day(isoDay(v / 1000)) },
-      ],
-      series: [
-        {
-          // lane names and dividers, fixed to the left edge
-          type: 'custom', id: 'lanes', silent: true, data: [[0]], z: 1,
-          renderItem: (params, api) => {
-            const g = params.coordSys, kids = [];
-            const yM = api.coord([0, MAIN])[1];
-            kids.push({ type: 'line', shape: { x1: g.x, y1: yM, x2: g.x + g.width, y2: yM }, style: { stroke: FG, lineWidth: 2, opacity: 0.85 } });
-            kids.push({ type: 'text', x: g.x + 2, y: yM - 7, style: { text: 'main', fill: FG, font: '600 11px Archivo, sans-serif', verticalAlign: 'bottom' } });
-            for (const lane of lanes) {
-              if (!lane) continue;
-              const yT = api.coord([0, lane.above ? lane.bottom : lane.top])[1];
-              kids.push({ type: 'line', shape: { x1: g.x, y1: yT, x2: g.x + g.width, y2: yT }, style: { stroke: LINE } });
+    function draw(from, to) {
+      const win = calls.filter((r) => r[iT] >= from && r[iT] < to);
+      if (!win.length) return;
+      const all = stretches(win);
+      const t0 = win[0][iT], t1 = win[win.length - 1][iT];
+      const merges = allMerges.filter((m) => m[0] >= t0 - 86400 && m[0] <= t1 + 86400);
+
+      const tasksSeen = new Map();
+      for (const s of all) for (const [k] of s.tasks) tasksSeen.set(k, Math.max(tasksSeen.get(k) || 0, s.to));
+      const shown = [...tasksSeen].sort((x, y) => y[1] - x[1]).map(([k]) => k);
+
+      // ---- branches: one per task, cut into segments wherever the work moves to another AI
+      branches = [];
+      for (const k of shown) {
+        const { parts, merges: mk } = partsOf(k, win);
+        if (!parts.length) continue;
+        const last = mk[mk.length - 1];
+        const end = Math.max(...parts.map((p) => p.end));
+        const mergeAt = last ? Math.max(last[0], end + 60) : null;
+        const segs = [];
+        for (const p of parts) {
+          const s = segs[segs.length - 1];
+          if (s && s.tool === p.tool) s.parts.push(p);
+          else segs.push({ tool: p.tool, from: p.from, parts: [p] });
+        }
+        segs.forEach((s, i) => {
+          const own = Math.max(...s.parts.map((p) => p.end));
+          s.leave = i + 1 < segs.length ? segs[i + 1].from : mergeAt != null ? mergeAt : own;
+          s.to = Math.max(s.leave, own);
+        });
+        branches.push({ k, segs, parts, merge: last, mergeAt });
+      }
+      const loose = all.filter((s) => s.task < 0);
+
+      // Pack each lane's segments into tracks, as a git graph gives each live branch its own column.
+      const GAP = 5400;
+      const tracks = TOOLS.map(() => []);
+      branches.flatMap((b) => b.segs).sort((a, b) => a.from - b.from).forEach((s) => {
+        const ends = tracks[s.tool];
+        let i = ends.findIndex((e) => e + GAP < s.from);
+        if (i < 0) i = ends.length;
+        s.prevEnd = ends[i] == null ? -Infinity : ends[i];
+        ends[i] = s.to;
+        s.track = i;
+      });
+      // Claude Code sits above main, the others below; each lane's first track is the one nearest main.
+      let MAIN = 0.6;
+      let y = 0.2;
+      const lanes = [];
+      TOOLS.forEach((t, i) => {
+        if (i === 1) { MAIN = y + 0.9; y = MAIN + 0.9; }
+        const nT = tracks[i].length, hasLoose = loose.some((s) => s.tool === i);
+        if (!nT && !hasLoose) return;
+        const lane = { tool: i, top: y, above: i === 0 };
+        y += 0.95;
+        if (hasLoose) { lane.loose = y + 0.5; y += 1; }
+        lane.first = y + 0.5;
+        lane.n = nT;
+        y += nT + 0.35;
+        lane.bottom = y;
+        lanes[i] = lane;
+      });
+      if (MAIN < 0.9) { MAIN = 0.6; } // no Claude Code lane: main stays at the top
+      const ROWS = y;
+      const trackY = (lane, k) => (lane.above ? lane.first + lane.n - 1 - k : lane.first + k);
+      for (const b of branches) for (const s of b.segs) s.y = trackY(lanes[s.tool], s.track);
+
+      // The note: how much of the work overlapped.
+      const hours = new Map();
+      for (const r of win) {
+        const h = Math.floor(r[iT] / 3600);
+        hours.set(h, (hours.get(h) || 0) | (1 << r[iTool]));
+      }
+      const sharedHours = [...hours.values()].filter((v) => v & (v - 1)).length;
+      const perTool = TOOLS.map((_, i) => all.filter((s) => s.tool === i).length);
+      const toMain = branches.filter((b) => b.merge && b.merge[4] !== 'pr').length;
+      $('#tl-note').textContent = 'Sable work ' + (isoDay(t0) === isoDay(t1) ? 'on ' + F.day(isoDay(t0)) : 'from ' + F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1))) + ': '
+        + F.int(branches.length) + ' tasks, of which ' + toMain + ' merged to main, across '
+        + listed(TOOLS.map((t, i) => perTool[i] ? F.int(perTool[i]) + ' ' + t.name + ' sessions' : null).filter(Boolean))
+        + '. In ' + sharedHours + ' of the ' + hours.size + ' hours with any activity, two or more AIs were at work.';
+      $('#tl-legend').replaceChildren(
+        ...TOOLS.filter((_, i) => perTool[i]).map((t) => li(swatch(t.color), t.name)),
+        li(dot(null, ASH), 'Hollow: reviewing'),
+        li(dot(FG), 'Merged to main'),
+        li(dot(null, FG), 'PR merged into another branch'),
+        (() => { const s = swatch(ASH); s.style.opacity = 0.4; return li(s, 'Faint: work not tied to a task'); })()
+      );
+
+      node.style.height = Math.round(20 + ROWS * ROW_PX + 84) + 'px';
+      chart.setOption(Object.assign(base(), {
+        animation: false,
+        grid: { left: 8, right: 8, top: 14, bottom: 84 },
+        tooltip: Object.assign({}, TIP, {
+          trigger: 'item',
+          formatter: (p) => {
+            if (p.seriesId === 'merges') {
+              const m = p.data.m;
+              return '<b>Merged to main</b> ' + dayOf(m[0]) + ', ' + clock(m[0])
+                + '<div style="max-width:280px;white-space:normal;margin-top:4px">' + esc(m[2]) + '</div>' + sub(esc(m[1]));
             }
-            return { type: 'group', children: kids };
-          },
-        },
-        {
-          type: 'custom', id: 'loose', data: loose.map((s) => ({ value: [ms(s.from), ms(s.end)], s })), encode: { x: [0, 1] }, clip: true, z: 2,
-          renderItem: (params, api) => {
-            const s = loose[params.dataIndex];
-            const yy = api.coord([0, lanes[s.tool].loose])[1];
-            return capsule(api.coord([ms(s.from), 0])[0], api.coord([ms(s.end), 0])[0], yy, TOOLS[s.tool].color, false, s.reviewing ? 0.25 : 0.4);
-          },
-        },
-        {
-          type: 'custom', id: 'branches', data: branchData(), encode: { x: [0, 1] }, clip: true, z: 3,
-          renderItem: (params, api) => {
-            const b = branches[params.dataIndex];
-            const X = (t) => api.coord([ms(t), 0])[0];
-            const Y = (v) => api.coord([0, v])[1];
-            const yM = Y(MAIN);
-            const on = lit === b.k;
-            const op = focused && !on ? 0.22 : 1, lw = on ? 3 : 2;
-            const kids = [];
-            let prevY = yM, prevC = FG;
-            b.segs.forEach((s, i) => {
-              const yy = Y(s.y), c = TOOLS[s.tool].color, xs = X(s.from);
-              kids.push(curve(xs - R, prevY, xs, yy, i ? c : c, lw, op));
-              const next = b.segs[i + 1];
-              const stop = next ? X(next.from) - R : b.mergeAt != null ? X(b.mergeAt) - R : X(s.to);
-              kids.push({ type: 'line', shape: { x1: xs, y1: yy, x2: Math.max(xs, stop, X(Math.max(...s.parts.map((p) => p.end)))), y2: yy },
-                style: { stroke: c, lineWidth: lw, opacity: op } });
-              for (const p of s.parts) kids.push(capsule(X(p.from), X(p.end), yy, c, p.reviewing, op));
-              prevY = yy;
-              prevC = c;
-            });
-            const lastSeg = b.segs[b.segs.length - 1];
-            if (b.mergeAt != null) {
-              const xm = X(b.mergeAt);
-              kids.push(curve(xm - R, prevY, xm, yM, prevC, lw, op));
-              const pr = b.merge[4] === 'pr';
-              kids.push({ type: 'circle', shape: { cx: xm, cy: yM, r: on ? 5.5 : 4.5 },
-                style: pr ? { fill: BG, stroke: FG, lineWidth: 2, opacity: op } : { fill: FG, stroke: BG, lineWidth: 1.5, opacity: op } });
-            } else {
-              const xe = Math.max(X(lastSeg.to), X(lastSeg.from) + 7);
-              kids.push({ type: 'circle', shape: { cx: xe + 4, cy: Y(lastSeg.y), r: 3 }, style: { fill: BG, stroke: prevC, lineWidth: 1.5, opacity: op } });
+            if (p.seriesId === 'loose') {
+              const s = p.data.s;
+              return '<b>Not tied to a task</b>' + sub(TOOLS[s.tool].name + ', ' + dayOf(s.from) + ' ' + clock(s.from) + ' to ' + clock(s.to)
+                + ' (' + span(s.to - s.from) + ')') + sub(s.n + (s.n === 1 ? ' call' : ' calls') + (s.reviewing ? ', reviewing' : ''));
             }
-            return { type: 'group', children: kids };
+            if (p.seriesId !== 'branches') return '';
+            const b = branches[p.data.i];
+            const m = b.merge;
+            const end = !m ? 'Not merged'
+              : (m[4] === 'pr' ? 'PR merged into another branch ' : 'Merged to main ') + dayOf(m[0]) + ', ' + clock(m[0]);
+            return '<b>Started ' + dayOf(b.parts[0].from) + ', ' + clock(b.parts[0].from) + '</b>'
+              + sub(whoDid(b.parts).map(esc).join('<br>')) + sub(end) + sub('Click to see its relay below');
           },
+        }),
+        xAxis: {
+          type: 'time', min: ms(t0 - 3600), max: ms(t1 + 3600), axisLine: { show: false }, axisTick: { show: false },
+          axisLabel: Object.assign({}, AXIS_LABEL, { hideOverlap: true }), splitLine: { show: true, lineStyle: { color: LINE, opacity: 0.35 } },
         },
-        {
-          // lane names on top of the branches, fixed to the left edge
-          type: 'custom', id: 'lane-names', silent: true, data: [[0]], z: 6,
-          renderItem: (params, api) => ({ type: 'group', children: lanes.filter(Boolean).map((lane) => ({
-            type: 'text', x: params.coordSys.x + 2, y: api.coord([0, lane.top])[1] + 4,
-            style: { text: TOOLS[lane.tool].name, fill: TOOLS[lane.tool].color, font: '600 11px Archivo, sans-serif', verticalAlign: 'top',
-              backgroundColor: BG, padding: [1, 6, 1, 0] } })) }),
-        },
-        {
-          // every commit on main; the ones a drawn task made sit under its merge dot
-          type: 'custom', id: 'merges', data: merges.map((m) => ({ value: [ms(m[0])], m })), encode: { x: 0 }, clip: true, z: 4,
-          renderItem: (params, api) => {
-            const x = api.coord([api.value(0), 0])[0], yM = api.coord([0, MAIN])[1];
-            return { type: 'circle', shape: { cx: x, cy: yM, r: 3.5 }, style: { fill: FG, stroke: BG, lineWidth: 1.5 } };
+        yAxis: { type: 'value', inverse: true, min: 0, max: ROWS, show: false },
+        dataZoom: [
+          { type: 'inside', filterMode: 'none', minValueSpan: 2 * 3600e3 },
+          { type: 'slider', filterMode: 'none', height: 26, bottom: 16, minValueSpan: 2 * 3600e3, borderColor: LINE, backgroundColor: 'transparent',
+            fillerColor: 'rgba(239,233,220,0.08)', handleStyle: { color: ASH, borderColor: ASH }, moveHandleStyle: { color: LINE },
+            dataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } }, selectedDataBackground: { lineStyle: { opacity: 0 }, areaStyle: { opacity: 0 } },
+            textStyle: { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11 }, labelFormatter: (v) => F.day(isoDay(v / 1000)) },
+        ],
+        series: [
+          {
+            // lane names and dividers, fixed to the left edge
+            type: 'custom', id: 'lanes', silent: true, data: [[0]], z: 1,
+            renderItem: (params, api) => {
+              const g = params.coordSys, kids = [];
+              const yM = api.coord([0, MAIN])[1];
+              kids.push({ type: 'line', shape: { x1: g.x, y1: yM, x2: g.x + g.width, y2: yM }, style: { stroke: FG, lineWidth: 2, opacity: 0.85 } });
+              kids.push({ type: 'text', x: g.x + 2, y: yM - 7, style: { text: 'main', fill: FG, font: '600 11px Archivo, sans-serif', verticalAlign: 'bottom' } });
+              for (const lane of lanes) {
+                if (!lane) continue;
+                const yT = api.coord([0, lane.above ? lane.bottom : lane.top])[1];
+                kids.push({ type: 'line', shape: { x1: g.x, y1: yT, x2: g.x + g.width, y2: yT }, style: { stroke: LINE } });
+              }
+              return { type: 'group', children: kids };
+            },
           },
-        },
-      ],
-    }));
+          {
+            type: 'custom', id: 'loose', data: loose.map((s) => ({ value: [ms(s.from), ms(s.end)], s })), encode: { x: [0, 1] }, clip: true, z: 2,
+            renderItem: (params, api) => {
+              const s = loose[params.dataIndex];
+              const yy = api.coord([0, lanes[s.tool].loose])[1];
+              return capsule(api.coord([ms(s.from), 0])[0], api.coord([ms(s.end), 0])[0], yy, TOOLS[s.tool].color, false, s.reviewing ? 0.25 : 0.4);
+            },
+          },
+          {
+            type: 'custom', id: 'branches', data: branchData(), encode: { x: [0, 1] }, clip: true, z: 3,
+            renderItem: (params, api) => {
+              const b = branches[params.dataIndex];
+              const X = (t) => api.coord([ms(t), 0])[0];
+              const Y = (v) => api.coord([0, v])[1];
+              const yM = Y(MAIN);
+              const on = lit === b.k;
+              const op = focused && !on ? 0.22 : 1, lw = on ? 3 : 2;
+              const kids = [];
+              let prevY = yM, prevC = FG;
+              b.segs.forEach((s, i) => {
+                const yy = Y(s.y), c = TOOLS[s.tool].color, xs = X(s.from);
+                kids.push(curve(xs - R, prevY, xs, yy, i ? c : c, lw, op));
+                const next = b.segs[i + 1];
+                const stop = next ? X(next.from) - R : b.mergeAt != null ? X(b.mergeAt) - R : X(s.to);
+                kids.push({ type: 'line', shape: { x1: xs, y1: yy, x2: Math.max(xs, stop, X(Math.max(...s.parts.map((p) => p.end)))), y2: yy },
+                  style: { stroke: c, lineWidth: lw, opacity: op } });
+                for (const p of s.parts) kids.push(capsule(X(p.from), X(p.end), yy, c, p.reviewing, op));
+                prevY = yy;
+                prevC = c;
+              });
+              const lastSeg = b.segs[b.segs.length - 1];
+              if (b.mergeAt != null) {
+                const xm = X(b.mergeAt);
+                kids.push(curve(xm - R, prevY, xm, yM, prevC, lw, op));
+                const pr = b.merge[4] === 'pr';
+                kids.push({ type: 'circle', shape: { cx: xm, cy: yM, r: on ? 5.5 : 4.5 },
+                  style: pr ? { fill: BG, stroke: FG, lineWidth: 2, opacity: op } : { fill: FG, stroke: BG, lineWidth: 1.5, opacity: op } });
+              } else {
+                const xe = Math.max(X(lastSeg.to), X(lastSeg.from) + 7);
+                kids.push({ type: 'circle', shape: { cx: xe + 4, cy: Y(lastSeg.y), r: 3 }, style: { fill: BG, stroke: prevC, lineWidth: 1.5, opacity: op } });
+              }
+              return { type: 'group', children: kids };
+            },
+          },
+          {
+            // lane names on top of the branches, fixed to the left edge
+            type: 'custom', id: 'lane-names', silent: true, data: [[0]], z: 6,
+            renderItem: (params, api) => ({ type: 'group', children: lanes.filter(Boolean).map((lane) => ({
+              type: 'text', x: params.coordSys.x + 2, y: api.coord([0, lane.top])[1] + 4,
+              style: { text: TOOLS[lane.tool].name, fill: TOOLS[lane.tool].color, font: '600 11px Archivo, sans-serif', verticalAlign: 'top',
+                backgroundColor: BG, padding: [1, 6, 1, 0] } })) }),
+          },
+          {
+            // every commit on main; the ones a drawn task made sit under its merge dot
+            type: 'custom', id: 'merges', data: merges.map((m) => ({ value: [ms(m[0])], m })), encode: { x: 0 }, clip: true, z: 4,
+            renderItem: (params, api) => {
+              const x = api.coord([api.value(0), 0])[0], yM = api.coord([0, MAIN])[1];
+              return { type: 'circle', shape: { cx: x, cy: yM, r: 3.5 }, style: { fill: FG, stroke: BG, lineWidth: 1.5 } };
+            },
+          },
+        ],
+      }), true);
+      chart.resize();
+    }
 
     // ---- the relay for one task
     const relay = make('chart-relay');
@@ -2491,7 +2505,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       pick.value = String(k);
       $('#relay-title').textContent = 'Relay: task started ' + dayOf(parts[0].from) + ', ' + clock(parts[0].from);
       const last = ms_[ms_.length - 1];
-      const merged = !last ? ' It has no merge in these 30 days.'
+      const merged = !last ? ' It has not merged.'
         : (last[4] === 'pr' ? ' Its PR merged into another branch on ' : ' It merged to main on ') + dayOf(last[0]) + ' at ' + clock(last[0]) + '.';
       $('#relay-note').textContent = whoDid(parts).join('. ') + '.' + merged
         + (later ? ' ' + F.int(later) + ' later calls booked to it after the merge are left out.' : '')
@@ -2608,45 +2622,51 @@ details.numbers[open] summary { margin-bottom: 10px; }
     chart.getZr().on('click', (e) => { if (!e.target && focused) light(lit, false); });
     pick.addEventListener('change', () => { light(+pick.value, true); showRelay(+pick.value); });
 
-    // Default relay: the latest task more than one AI worked on.
-    const multi = branches.find((b) => new Set(b.parts.map((p) => p.tool)).size > 1);
-    const first = multi ? multi.k : order[0];
-    if (first != null) { light(first, false); showRelay(first); }
-    else $('#relay').hidden = true;
+    // Default relay: the latest task more than one AI worked on, in the period first shown.
+    const pickFirst = () => {
+      const multi = branches.find((b) => new Set(b.parts.map((p) => p.tool)).size > 1);
+      return multi ? multi.k : branches.length ? branches[0].k : order[0];
+    };
 
-    // Views: the whole month, the day with the most overlap between AIs, or the latest day.
-    const overlap = new Map();
-    for (let i = 0; i < all.length; i += 1) {
-      for (let j = i + 1; j < all.length && all[j].from <= all[i].end; j += 1) {
-        if (all[j].tool !== all[i].tool) overlap.set(isoDay(all[j].from), (overlap.get(isoDay(all[j].from)) || 0) + Math.min(all[i].end, all[j].end) - all[j].from);
+    // Periods. The first one shown counts back whole days from the latest activity until it holds enough
+    // tasks to read (fewer on a phone), so a busy spell shows a day or two and a quiet one shows more.
+    const dayStart = (s, back) => { const d = new Date(ms(s)); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (back || 0)); return d.getTime() / 1000; };
+    const ENOUGH = narrow ? 6 : 10;
+    const tasksSince = (from) => new Set(calls.filter((r) => r[iT] >= from && r[iTask] >= 0).map((r) => r[iTask])).size;
+    let autoDays = 1;
+    while (autoDays < 30 && tasksSince(dayStart(tEnd, autoDays - 1)) < ENOUGH) autoDays += 1;
+    // The day with the most overlap between AIs.
+    const every = stretches(calls), overlap = new Map();
+    for (let i = 0; i < every.length; i += 1) {
+      for (let j = i + 1; j < every.length && every[j].from <= every[i].end; j += 1) {
+        if (every[j].tool !== every[i].tool) overlap.set(isoDay(every[j].from), (overlap.get(isoDay(every[j].from)) || 0) + Math.min(every[i].end, every[j].end) - every[j].from);
       }
     }
-    const busiest = [...overlap].sort((a, b) => b[1] - a[1])[0];
-    const lastDay = isoDay(t1);
-    const showDay = (d) => {
-      const ss = all.filter((s) => isoDay(s.from) === d);
-      const a = Math.min(...ss.map((s) => s.from)), b = Math.max(...ss.map((s) => s.end));
-      chart.dispatchAction({ type: 'dataZoom', startValue: ms(a - 1800), endValue: ms(Math.max(b, a + 3 * 3600) + 1800) });
-    };
-    const views = {
-      all: () => chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }),
-      busy: () => showDay(busiest[0]),
-      last: () => showDay(lastDay),
-    };
+    const busiest = [...overlap].sort((x, y) => y[1] - x[1])[0];
+    const autoFrom = dayStart(tEnd, autoDays - 1);
+    const views = [{ label: autoDays === 1 ? 'Latest day' : 'Last ' + autoDays + ' days', short: autoDays === 1 ? '1 day' : autoDays + ' days', from: autoFrom, to: Infinity }];
+    if (autoDays < 7) views.push({ label: 'Last 7 days', short: '7 days', from: dayStart(tEnd, 6), to: Infinity });
+    if (autoDays < 30) views.push({ label: 'Last 30 days', short: '30 days', from: -Infinity, to: Infinity });
+    if (busiest) {
+      const bFrom = new Date(busiest[0] + 'T00:00:00').getTime() / 1000;
+      if (bFrom < autoFrom) views.push({ label: 'Busiest day, ' + F.day(busiest[0]), short: 'Busiest', from: bFrom, to: dayStart(bFrom + 36 * 3600) });
+    }
     const seg = $('#tl-view');
-    const btn = (key, label) => {
-      const b = el('button', null, label);
+    seg.replaceChildren(...views.map((v, i) => {
+      const b = el('button', null, narrow ? v.short : v.label);
       b.type = 'button';
-      b.setAttribute('aria-pressed', key === 'all');
+      b.setAttribute('aria-pressed', i === 0);
       b.addEventListener('click', () => {
         seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
-        views[key]();
+        draw(v.from, v.to);
       });
       return b;
-    };
-    seg.replaceChildren(btn('all', narrow ? '30 days' : 'Last 30 days'),
-      ...(busiest ? [btn('busy', 'Busiest day, ' + F.day(busiest[0]))] : []),
-      ...(busiest && busiest[0] === lastDay ? [] : [btn('last', 'Latest day, ' + F.day(lastDay))]));
+    }));
+
+    draw(views[0].from, views[0].to);
+    const first = pickFirst();
+    if (first != null) { light(first, false); showRelay(first); }
+    else $('#relay').hidden = true;
     $('#timeline').hidden = false;
     chart.resize();
     relay.resize();

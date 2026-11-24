@@ -116,7 +116,11 @@ merged into another branch). Lines that are live at the same time get their own 
 Capsules on a line are stretches of work, split wherever a session sat idle for over 30
 minutes; hollow ones are reviewing. Work not tied to a task sits faintly at the top of its lane.
 Clicking a line opens the relay for its task below; the relay names a task by when it started
-and which AIs worked on it, never by its PR. Sable calls only, last 30 days. Each
+and which AIs worked on it, never by its PR. Sable calls only, last 30 days. The graph opens on
+the latest whole days, counting back until they hold about ten tasks (six on a phone), so a busy
+spell shows a day or two and a quiet one a week or more; buttons switch to the last 7 days, the
+last 30 days, or the day the AIs overlapped most. Each period is drawn on its own, so its lanes
+only take as many tracks as that period needs. Each
 waveform row ends with project and session indices (into `projects` and `sessions`).
 
 ## Daily refresh
