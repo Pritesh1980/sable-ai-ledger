@@ -5,7 +5,7 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 180k tokens on average in the last 7 days (171k the week before). Re-reading that context was 41% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 181k tokens on average in the last 7 days (171k the week before). Re-reading that context was 41% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
@@ -22,8 +22,8 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 44% on the week before",
-   "detail": "$76 in the last 7 days, against $136. Busiest day: Tue 24 Nov, at $24."
+   "title": "Claude spend down 43% on the week before",
+   "detail": "$77 in the last 7 days, against $136. Busiest day: Tue 24 Nov, at $26."
   },
   {
    "kind": "trend",

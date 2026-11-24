@@ -343,13 +343,13 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="pertask-h" tabindex="-1">Cost per shipped task</h2>
-        <p id="pertask-note">What a shipped task cost on average, by the Claude model that led it.</p>
+        <p id="pertask-note">What a shipped task cost on average, by the model that led it.</p>
       </div>
       <div class="seg" role="group" aria-label="Tasks shown" id="pertask-view"></div>
     </div>
     <div>
-      <p class="chart-note">Each bar is the average Claude cost of the shipped tasks a model led, priced at API list rates. The dark tick is the median: when it sits well short of the bar's end, a few expensive tasks are pulling the average up. Models that led fewer than 3 tasks are left out as too few to judge. Point at a bar for details.</p>
-      <div class="chart" id="chart-pertask" style="height: 300px" role="img" aria-label="Average Claude cost per shipped task for each lead model"></div>
+      <p class="chart-note">Each bar is the average cost of the shipped tasks a model led: Claude Code's work at Anthropic's API list rates, plus the Codex and Antigravity work on the same tasks at estimated GPT and Gemini API rates (lighter). The dark tick is the median: when it sits well short of the bar's end, a few expensive tasks are pulling the average up. Models that led fewer than 3 tasks are left out as too few to judge. Point at a bar for details.</p>
+      <div class="chart" id="chart-pertask" style="height: 300px" role="img" aria-label="Average cost per shipped task for each lead model, Claude at list prices and GPT and Gemini estimated"></div>
     </div>
   </section>
 
@@ -607,7 +607,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again. Most come after a gap of an hour or more, when the prompt cache has expired; fewer follow a compaction.</dd></div>
       <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
       <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
-      <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI. Tokens only, with no list prices.</dd></div>
+      <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI.</dd></div>
+      <div><dt>Estimated cost</dt><dd>GPT and Gemini work priced at API rates found online, marked "estimate" in the prices below. Only "Cost per shipped task" uses them; elsewhere cost means Claude.</dd></div>
       <div><dt>Call</dt><dd>One model response: a reply in Claude Code, a model turn in Codex, a generation in Antigravity.</dd></div>
     </dl>
     <div class="prices">
@@ -1592,21 +1593,24 @@ details.numbers[open] summary { margin-bottom: 10px; }
   function perTask(S) {
     const VIEWS = [['all', 'All tasks', null], ['small', 'Small and medium', ['S', 'M']], ['large', 'Large', ['L', 'XL']]];
     const MIN = 3;
-    const shipped = S.tasks.filter((t) => t.shipped && t.cost_usd > 0 && t.primary_model && t.primary_model.startsWith('claude-'));
+    // A task's cost: Claude at list prices, plus Codex and Antigravity work on it at estimated GPT and Gemini rates.
+    const est = (t) => (t.codex_cost_usd || 0) + (t.gemini_cost_usd || 0);
+    const shipped = S.tasks.filter((t) => t.shipped && t.primary_model && t.cost_usd + est(t) > 0);
     if (!shipped.length) return null;
-    const ledBy = (g) => S.tasks.filter((t) => t.shipped && t.primary_model && groupOf(t.primary_model) === g).length;
-    const codexLed = ledBy('codex'), agyLed = ledBy('agy');
-    const FG = '#efe9dc', BG = '#131110';
+    const FG = '#efe9dc', BG = '#131110', EST = '#8a8478';
     const chart = make('chart-pertask');
     const rowsFor = (keep) => {
       const by = new Map();
       for (const t of shipped) {
         if (keep && !keep.includes(t.size)) continue;
         if (!by.has(t.primary_model)) by.set(t.primary_model, []);
-        by.get(t.primary_model).push(t.cost_usd);
+        by.get(t.primary_model).push(t);
       }
-      return [...by].map(([m, c]) => ({ m, name: modelName(m), n: c.length, avg: sum(c) / c.length, med: median(c), total: sum(c), ok: c.length >= MIN }))
-        .sort((a, b) => (b.ok - a.ok) || a.avg - b.avg);
+      return [...by].map(([m, ts]) => {
+        const c = ts.map((t) => t.cost_usd + est(t)), n = ts.length;
+        const claude = sum(ts.map((t) => t.cost_usd)) / n, other = sum(ts.map(est)) / n;
+        return { m, name: modelName(m), n, claude, other, avg: claude + other, med: median(c), total: sum(c), ok: n >= MIN };
+      }).sort((a, b) => (b.ok - a.ok) || a.avg - b.avg);
     };
     function show(key) {
       const [, label, keep] = VIEWS.find((v) => v[0] === key);
@@ -1621,17 +1625,18 @@ details.numbers[open] summary { margin-bottom: 10px; }
           + (rows.length > 1 && hi !== top ? ' Dearest was ' + hi.name + ' at ' + F.usd(hi.avg) + '.' : '') + ' '
         : label + ': too few tasks per model to compare. ')
         + (few.length ? 'Left out with fewer than ' + MIN + ' tasks: ' + listed(few.map((r) => r.name + ' (' + r.n + ', ' + F.usd(r.avg) + ' average)')) + '. ' : '')
-        + 'GPT and Gemini models are not shown, as there are no list prices for them here. GPT led '
-        + plural(codexLed, 'shipped task', 'shipped tasks') + ' and Gemini ' + plural(agyLed, 'shipped task', 'shipped tasks') + '.';
-      $('#chart-pertask').style.height = (rows.length * 46 + 40) + 'px';
+        + 'GPT and Gemini have no list prices here, so their part of each task is an estimate from published API rates'
+        + ' (see "Prices used" at the foot of the page).';
+      $('#chart-pertask').style.height = (rows.length * 46 + 68) + 'px';
       chart.resize();
       chart.setOption(Object.assign(base(), {
-        grid: { left: 8, right: 64, top: 8, bottom: 24, containLabel: true },
+        grid: { left: 8, right: 64, top: 36, bottom: 24, containLabel: true },
         tooltip: Object.assign({}, TIP, {
           trigger: 'item',
           formatter: (p) => {
             const r = rows[p.dataIndex];
             return '<b>' + r.name + '</b>, ' + label.toLowerCase() + '<br>Average <b>' + F.usd(r.avg) + '</b>, median ' + F.usd(r.med)
+              + '<br>Claude ' + F.usd(r.claude) + ', GPT and Gemini about ' + F.usd(r.other) + ' a task'
               + '<br>' + r.n + ' tasks, ' + F.usd(r.total) + ' in all';
           },
         }),
@@ -1641,9 +1646,14 @@ details.numbers[open] summary { margin-bottom: 10px; }
           axisLabel: { formatter: (v, i) => '{m|' + v + '}\n{n|' + rows[i].n + (rows[i].n === 1 ? ' task' : ' tasks') + '}',
             rich: { m: { color: FG, fontFamily: 'Archivo, sans-serif', fontSize: 13, fontWeight: 500 }, n: { color: '#6f6a60', fontFamily: 'Archivo, sans-serif', fontSize: 11, padding: [3, 0, 0, 0] } } },
         },
+        legend: { top: 0, left: 0, itemWidth: 10, itemHeight: 10, itemGap: 16, selectedMode: false,
+          data: ['Claude, at list prices', 'GPT and Gemini, estimated'], textStyle: { color: '#a8a294', fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
         series: [
-          { type: 'bar', barWidth: 18, data: rows.map((r) => ({ value: r.avg, itemStyle: { color: FG, borderRadius: [0, 3, 3, 0] } })),
-            label: { show: true, position: 'right', formatter: (p) => F.usd(p.value), color: FG, fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
+          { name: 'Claude, at list prices', type: 'bar', stack: 'cost', barWidth: 18, itemStyle: { color: FG },
+            data: rows.map((r) => ({ value: r.claude, itemStyle: { borderRadius: r.other > 0.005 ? 0 : [0, 3, 3, 0] } })) },
+          { name: 'GPT and Gemini, estimated', type: 'bar', stack: 'cost', barWidth: 18, itemStyle: { color: EST },
+            data: rows.map((r) => ({ value: r.other, itemStyle: { borderRadius: [0, 3, 3, 0] } })),
+            label: { show: true, position: 'right', formatter: (p) => F.usd(rows[p.dataIndex].avg), color: FG, fontFamily: 'Archivo, sans-serif', fontSize: 12 } },
           { type: 'scatter', data: rows.map((r) => r.med), symbol: 'rect', symbolSize: [3, 18], z: 5, silent: true,
             itemStyle: { color: BG, borderColor: FG, borderWidth: 1 } },
         ],
@@ -2726,10 +2736,13 @@ details.numbers[open] summary { margin-bottom: 10px; }
     D.prices.forEach((p) => {
       const tr = el('tr');
       const g = GROUP[groupOf(p.model)];
+      const rate = (v) => (v == null ? '\u2014' : F.rate(v));
+      const name = p.estimated ? (p.model === 'gemini-flash' ? 'Gemini Flash (any)' : modelName(p.model)) + ', estimate'
+        : g.id === 'other' ? p.model.replace('claude-', '') : g.name;
       tr.append(
-        el('td', null, g.id === 'other' ? p.model.replace('claude-', '') : g.name),
-        el('td', 'num', F.rate(p.input)), el('td', 'num', F.rate(p.output)), el('td', 'num', F.rate(p.cache_read)),
-        el('td', 'num opt', F.rate(p.cache_write_5m)), el('td', 'num opt', F.rate(p.cache_write_1h))
+        el('td', null, name),
+        el('td', 'num', rate(p.input)), el('td', 'num', rate(p.output)), el('td', 'num', rate(p.cache_read)),
+        el('td', 'num opt', rate(p.cache_write_5m)), el('td', 'num opt', rate(p.cache_write_1h))
       );
       tbody.appendChild(tr);
     });

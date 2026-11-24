@@ -85,8 +85,32 @@ Straight after the waveform, "Cost per shipped task" shows the average Claude co
 shipped tasks each model led (`primary_model` in `out/tasks.json`), with a tick for the median.
 Buttons switch between all tasks, small and medium (S, M) and large (L, XL), since bigger jobs
 tend to go to some models more than others. Models that led fewer than 3 tasks are named in the
-note instead of drawn. GPT and Gemini models have no list prices here, so they are left out; the
-note says how many shipped tasks each led.
+note instead of drawn. Each bar stacks the task's Claude cost (list prices) and the estimated cost of the
+Codex and Antigravity work on it (`codex_cost_usd`, `gemini_cost_usd` in `out/tasks.json`), so GPT- and
+Gemini-led tasks appear too.
+
+## Estimated GPT and Gemini costs
+
+OpenAI and Google models have no prices from a source this ledger trusts, so `EST_PRICES` in `ingest.py`
+holds estimates gathered from the web on 2026-11-24 (per million tokens: input, output, cached input).
+Codex and Antigravity rows in `out/daily.json` gain `est_cost_usd`; `out/prices.json` lists the rates
+with `estimated: true`. Only "Cost per shipped task" shows them; every other cost on the page is Claude.
+
+- GPT-6.2 Sol and GPT-6.1 Sol ($2 / $10 / $0.10) and GPT-6.2 Astra ($8 / $40 / $0.40): OpenAI's GPT-6.2
+  launch post. GPT-6 Astra ($10 / $50 / $1) is 25% above 6.2 Astra, as that post says.
+- GPT-6 Sol ($2 / $10 / $0.20): price trackers, citing OpenAI's pricing page in October 2026.
+- GPT-5.6 Sol ($5 / $30 / $0.50), Terra ($2 / $12 / $0.20 after the July cut), Luna ($0.20 / $1.20 / $0.02),
+  GPT-5.5 ($5 / $30 / $0.50): OpenAI's GPT-5.6 post and trackers. Sol ran a promotional $4 / $20 for a
+  while from late August; the list rate is used.
+- Gemini 4 Argon ($2 / $10 / $0.10): Google's Gemini API pricing page, until 30 November 2026, when Google
+  doubles it. Hydrogen ($1.50 / $7.50 / $0.075) and Neon ($3 / $15 / $0.15): trackers only.
+- Gemini 3.1 Pro ($2 / $12 / $0.20) and every Flash model at Gemini 3.6 Flash's list rate ($1.50 / $7.50 /
+  $0.15): Google Cloud's Vertex AI price list.
+- Codex calls that don't name a model (`unknown`, and the `codex-auto-review` approval checker, which
+  OpenAI doesn't charge ChatGPT sign-ins for) are priced as that day's busiest named Codex model.
+
+One rate per model, though some changed over time, and these are API prices: Codex and Antigravity run
+on subscriptions here, as Claude Code does. Update the table when prices change.
 
 ## Where Gemini is used
 

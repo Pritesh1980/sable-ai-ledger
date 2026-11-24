@@ -806,3 +806,21 @@ class WaveformMerges(unittest.TestCase):
 
     def test_no_commits_gives_empty_list(self):
         self.assertEqual(ing.build_waveform([], [], since=t('2026-10-01T00:00:00'))['merges'], [])
+
+
+class EstimatedCosts(unittest.TestCase):
+    U = dict(input=1_000_000, cw5=0, cw1h=0, cache_read=10_000_000, output=100_000, thinking=50_000)
+
+    def test_named_gpt_model(self):
+        # GPT-6.2 Sol: $2 input, $0.10 cached, $10 output per million
+        self.assertAlmostEqual(ing.est_cost('gpt-6.2-sol', self.U), 2 + 1 + 1)
+
+    def test_any_flash_model_uses_the_flash_rate(self):
+        self.assertEqual(ing.est_price('gemini-3.8-flash-tiered'), ing.EST_PRICES['gemini-flash'])
+
+    def test_unnamed_model_takes_the_fallback(self):
+        self.assertIsNone(ing.est_cost('codex-auto-review', self.U))
+        self.assertAlmostEqual(ing.est_cost('codex-auto-review', self.U, 'gpt-6.2-sol'), 4)
+
+    def test_claude_elsewhere_is_priced_at_list(self):
+        self.assertAlmostEqual(ing.est_cost('claude-opus-5-5', self.U), ing.cost('claude-opus-5-5', self.U))

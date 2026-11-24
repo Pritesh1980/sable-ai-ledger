@@ -62,6 +62,28 @@ PRICES = {
 CACHE_WRITE_5M = 1.25
 CACHE_WRITE_1H = 2.0
 
+# GPT and Gemini have no prices here from their makers' own price lists, so these are estimates gathered from the web
+# on EST_PRICES_AS_OF (official announcements where found, price trackers otherwise; they disagree in places).
+# USD per million tokens: input, output, cached input. One rate per model, though some changed over time.
+# The README's "Estimated GPT and Gemini costs" section says where each came from.
+EST_PRICES_AS_OF = '2026-11-24'
+EST_PRICES = {
+    'gpt-5.5': (5.0, 30.0, 0.50),
+    'gpt-5.6-sol': (5.0, 30.0, 0.50),
+    'gpt-5.6-terra': (2.0, 12.0, 0.20),
+    'gpt-5.6-luna': (0.20, 1.20, 0.02),
+    'gpt-6-sol': (2.0, 10.0, 0.20),
+    'gpt-6-astra': (10.0, 50.0, 1.00),
+    'gpt-6.1-sol': (2.0, 10.0, 0.10),
+    'gpt-6.2-sol': (2.0, 10.0, 0.10),
+    'gpt-6.2-astra': (8.0, 40.0, 0.40),
+    'gemini-4-argon': (2.0, 10.0, 0.10),
+    'gemini-4-hydrogen': (1.50, 7.50, 0.075),
+    'gemini-4-neon': (3.0, 15.0, 0.15),
+    'gemini-3.1-pro': (2.0, 12.0, 0.20),
+    'gemini-flash': (1.50, 7.50, 0.15),  # every Flash model, at Gemini 3.6 Flash's list rate
+}
+
 KINDS = ('input', 'cw5', 'cw1h', 'cache_read', 'output', 'thinking')
 MAIN_BRANCHES = ('', 'main', 'master', 'HEAD', None)
 AHEAD = timedelta(hours=4)
@@ -131,6 +153,28 @@ def cost(model, u):
     pin, pout, pcr = p
     return (u['input'] * pin + u['cw5'] * pin * CACHE_WRITE_5M + u['cw1h'] * pin * CACHE_WRITE_1H
             + u['cache_read'] * pcr + u['output'] * pout) / 1e6
+
+
+def est_price(model):
+    if not model:
+        return None
+    if model in EST_PRICES:
+        return EST_PRICES[model]
+    if model.startswith('gemini') and 'flash' in model:
+        return EST_PRICES['gemini-flash']
+    return None
+
+
+def est_cost(model, u, fallback=None):
+    """Estimated cost of a GPT or Gemini call, or a Claude call made outside Claude Code (at list price). A model the
+    log doesn't name (Codex's 'unknown', its 'codex-auto-review' checker) takes the rate of `fallback`."""
+    if model and model.startswith('claude'):
+        return cost(model, u)
+    p = est_price(model) or est_price(fallback)
+    if not p:
+        return None
+    pin, pout, pcr = p
+    return ((u['input'] + u['cw5'] + u['cw1h']) * pin + u['cache_read'] * pcr + u['output'] * pout) / 1e6
 
 
 def usage_of(u):
@@ -1464,10 +1508,21 @@ def build():
         if r.get('rebuild'):
             row['rebuilds'] += 1
             row['rebuild_tokens'] += r['usage']['cw5'] + r['usage']['cw1h']
+    # Codex calls that don't name their model are priced as the day's busiest named Codex model.
+    codex_day = defaultdict(Counter)
+    for c in codex_rows:
+        if est_price(c['model']):
+            codex_day[local_day(c['ts'])][c['model']] += sum(c['usage'][k] for k in ('input', 'cache_read', 'output'))
+    for c in codex_rows:
+        top = codex_day.get(local_day(c['ts']))
+        c['est'] = est_cost(c['model'], c['usage'], top.most_common(1)[0][0] if top else 'gpt-5.6-sol')
+    for g in gemini_rows:
+        g['est'] = est_cost(g['model'], g['usage'])
     for c in codex_rows:
         row = daily[(local_day(c['ts']), 'Codex', c['model'], c['role'], bool(c['task']), c['project'], '', '')]
         row['replies'] += 1
         add(row, c['usage'])
+        row['est_cost_usd'] = row.get('est_cost_usd', 0.0) + (c['est'] or 0)
     cloud = load_cloud()
     for c in cloud:  # whole days from the cloud, so no task, rebuilds or per-call detail
         row = daily[(c['day'], 'Claude Code', norm_model(c['model']), 'main', False, c['project'], '', '')]
@@ -1479,17 +1534,20 @@ def build():
                      g.get('mode') or '', g.get('effort') or '')]
         row['replies'] += 1
         add(row, g['usage'])
+        row['est_cost_usd'] = row.get('est_cost_usd', 0.0) + (g['est'] or 0)
     daily_rows = []
     for (day, tool, model, role, attributed, project, mode, effort), row in sorted(daily.items()):
         row = dict(row)
         row['cost_usd'] = round(row['cost_usd'], 4) if tool == 'Claude Code' else None
+        if tool != 'Claude Code':
+            row['est_cost_usd'] = round(row.get('est_cost_usd', 0.0), 4)
         extra = dict(mode=mode, effort=effort or None) if tool == 'Antigravity' else {}
         daily_rows.append(dict(day=day, tool=tool, model=model, role=role, attributed=attributed, project=project,
                                **extra, **row))
 
     # ---- tasks
     acc = defaultdict(lambda: dict(
-        usage=zero(), codex=zero(), codex_review=zero(), gemini=zero(), gemini_review=zero(), cost=0.0, out_by_model=Counter(), replies=0,
+        usage=zero(), codex=zero(), codex_review=zero(), gemini=zero(), gemini_review=zero(), cost=0.0, codex_cost=0.0, gemini_cost=0.0, out_by_model=Counter(), replies=0,
         subagent=0, tools=0, tests=0, test_fail=0, reviews=0, times=[], sessions=set()))
     for r in replies:
         if not r['task']:
@@ -1507,6 +1565,7 @@ def build():
         if not c['task']:
             continue
         a = acc[c['task']]
+        a['codex_cost'] += c['est'] or 0
         if c['role'] == 'review':
             add(a['codex_review'], c['usage'])
             continue
@@ -1518,6 +1577,7 @@ def build():
         if not g['task'] or not g['model'].startswith('gemini'):
             continue
         a = acc[g['task']]
+        a['gemini_cost'] += g['est'] or 0
         if g['role'] == 'review':
             add(a['gemini_review'], g['usage'])
             continue
@@ -1607,12 +1667,15 @@ def build():
             codex_review_tokens=sum(a['codex_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
             gemini_tokens=sum(a['gemini'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
             gemini_review_tokens=sum(a['gemini_review'][k] for k in ('input', 'cw5', 'cache_read', 'output')),
+            codex_cost_usd=round(a['codex_cost'], 4), gemini_cost_usd=round(a['gemini_cost'], 4),
         ))
     task_rows.sort(key=lambda t: (t['started'] or '', t['task']), reverse=True)
 
 
     prices = [dict(model=m, input=p[0], output=p[1], cache_read=p[2], cache_write_5m=p[0] * CACHE_WRITE_5M,
                    cache_write_1h=p[0] * CACHE_WRITE_1H, as_of=PRICES_AS_OF) for m, p in PRICES.items()]
+    prices += [dict(model=m, input=p[0], output=p[1], cache_read=p[2], cache_write_5m=None, cache_write_1h=None,
+                    as_of=EST_PRICES_AS_OF, estimated=True) for m, p in EST_PRICES.items()]
 
     os.makedirs(OUT, exist_ok=True)
     previous = os.path.join(OUT, 'daily.json')
