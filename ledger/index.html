@@ -752,7 +752,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
   const dayNum = (s) => Date.parse(s + 'T00:00:00Z') / 864e5;
   const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 
-  const load = (name) => fetch('data/' + name + '.json').then((r) => {
+  // no-cache: always ask the server whether the data changed (a quick 304 if not), so a reopened tab never shows old numbers.
+  const load = (name) => fetch('data/' + name + '.json', { cache: 'no-cache' }).then((r) => {
     if (!r.ok) throw new Error(name + '.json returned ' + r.status);
     return r.json();
   });
