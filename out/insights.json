@@ -5,13 +5,13 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 173k tokens on average in the last 7 days (171k the week before). Re-reading that context was 40% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 180k tokens on average in the last 7 days (171k the week before). Re-reading that context was 41% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "14 cache rebuilds cost $14 in the last 7 days (18 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "17 cache rebuilds cost $18 in the last 7 days (18 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
@@ -22,14 +22,14 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 61% on the week before",
-   "detail": "$53 in the last 7 days, against $136. Busiest day: Fri 20 Nov, at $14."
+   "title": "Claude spend down 44% on the week before",
+   "detail": "$76 in the last 7 days, against $136. Busiest day: Tue 24 Nov, at $24."
   },
   {
    "kind": "trend",
-   "area": "tools",
-   "title": "Claude Code use down 51%",
-   "detail": "628 calls in the last 7 days, against 1278 the week before."
+   "area": "tasks",
+   "title": "Biggest task this week: PR #249",
+   "detail": "\"feat(search): search your photos by words, on-device (#186)\" cost $7.85 over 112 replies, about 2 times your median task ($3.89)."
   }
  ]
 }
