@@ -5,13 +5,13 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 181k tokens on average in the last 7 days (171k the week before). Re-reading that context was 41% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 183k tokens on average in the last 7 days (171k the week before). Re-reading that context was 42% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "17 cache rebuilds cost $18 in the last 7 days (18 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "20 cache rebuilds cost $21 in the last 7 days (18 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
   },
   {
    "kind": "tip",
@@ -22,14 +22,14 @@
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 43% on the week before",
-   "detail": "$77 in the last 7 days, against $136. Busiest day: Tue 24 Nov, at $26."
+   "title": "Claude spend down 28% on the week before",
+   "detail": "$97 in the last 7 days, against $136. Busiest day: Tue 24 Nov, at $46."
   },
   {
    "kind": "trend",
    "area": "tasks",
    "title": "Biggest task this week: PR #249",
-   "detail": "\"feat(search): search your photos by words, on-device (#186)\" cost $7.85 over 112 replies, about 2 times your median task ($3.89)."
+   "detail": "\"feat(search): search your photos by words, on-device (#186)\" cost $8.96 over 126 replies, about 2 times your median task ($3.91)."
   }
  ]
 }
