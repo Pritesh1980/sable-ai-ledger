@@ -55,7 +55,7 @@ Run `./refresh.sh`. It ingests, commits `out/` and pushes; the push redeploys th
 The Pages workflow adds the document skeleton (`<!doctype html>`, charset, viewport)
 in front of `ledger/index.html` and copies `out/{daily,tasks,prices,waveform}.json`
 and `out/meta.json` to `data/`, which is where the page fetches them from. `meta.json`
-holds the time of the last refresh, which the page shows as "Last updated" beside
+holds the time of the last refresh, which the page shows as "Updated" beside
 "Latest activity" (the latest call in the data). `out/insights.json` is copied too.
 
 ## Tips and trends

@@ -1,29 +1,41 @@
 {
- "through": "2026-11-24",
+ "through": "2026-11-25",
  "items": [
   {
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 183k tokens on average in the last 7 days (171k the week before). Re-reading that context was 42% of Claude spend. Start a new session for each task, and /clear when you switch to something unrelated, so replies stop carrying old work."
+   "detail": "Each reply read 191k tokens on average in the last 7 days (145k the week before). Re-reading it was 42% of Claude spend. Start a new session, or /clear, for each new task."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "20 cache rebuilds cost $21 in the last 7 days (18 the week before). Once a session sits idle for an hour its cache expires, and the next reply pays to write the whole conversation again. After a long break, start a new session with a short summary, or run /compact before you step away."
+   "detail": "18 cache rebuilds cost $20 in the last 7 days (18 the week before). The cache expires after an idle hour, so after a break start a new session, or /compact before you step away."
   },
   {
    "kind": "tip",
    "area": "rework",
    "title": "Ask for tests on the tricky part up front",
-   "detail": "62 later commits changed files from 25 tasks shipped in the last 28 days, most after PR #166 (8). Follow-up fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part before it builds."
+   "detail": "62 later commits changed files from 25 tasks shipped in the last 28 days, most after PR #166 (8). Ask Claude to test the risky part before it builds."
   },
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 28% on the week before",
-   "detail": "$97 in the last 7 days, against $136. Busiest day: Tue 24 Nov, at $46."
+   "title": "Claude spend down 17% on the week before",
+   "detail": "$96 in the last 7 days, against $116. Busiest day: Tue 24 Nov, at $46."
+  },
+  {
+   "kind": "trend",
+   "area": "tools",
+   "title": "Codex use up 4.0x",
+   "detail": "680 calls in the last 7 days, against 168 the week before."
+  },
+  {
+   "kind": "trend",
+   "area": "tools",
+   "title": "Antigravity use up 3.5x",
+   "detail": "751 calls in the last 7 days, against 216 the week before."
   },
   {
    "kind": "trend",

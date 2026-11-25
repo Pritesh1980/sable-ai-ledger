@@ -667,7 +667,7 @@ class Insights(unittest.TestCase):
         self.assertEqual(tip['title'], 'Keep sessions to one task each')
         # 200k per reply this week, 100k last; 2M cache reads at $0.20/M = $0.40 of $1.00.
         self.assertIn('200k tokens on average in the last 7 days (100k the week before)', tip['detail'])
-        self.assertIn('was 40% of Claude spend', tip['detail'])
+        self.assertIn('Re-reading it was 40% of Claude spend', tip['detail'])
 
     def test_praises_a_clear_drop_in_context(self):
         daily = [day_row('2026-11-09', cache_read=1_000_000), day_row('2026-11-01', cache_read=1_400_000)]

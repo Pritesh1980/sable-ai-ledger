@@ -1297,15 +1297,14 @@ def insights(daily, tasks):
     if opus_share >= 0.8 and len(opus) >= 3 and len(sonnet) >= 3:
         mo, ms = median(t['cost_usd'] for t in opus), median(t['cost_usd'] for t in sonnet)
         if ms < 0.6 * mo:
-            detail = ('Opus took %s of Claude spend in the last 28 days. Your small and medium tasks cost a median '
+            detail = ('Opus took %s of Claude spend in the last 28 days, yet small and medium tasks cost a median '
                       '%s on Opus and %s on Sonnet' % (_pct(opus_share), _usd(mo), _usd(ms)))
             fo = [t['ci_first_pass'] for t in opus if t.get('ci_first_pass') is not None]
             fs = [t['ci_first_pass'] for t in sonnet if t.get('ci_first_pass') is not None]
             if len(fo) >= 3 and len(fs) >= 3:
                 detail += ', and passed CI first time %s and %s of the time' % (
                     _pct(sum(fo) / len(fo)), _pct(sum(fs) / len(fs)))
-            detail += ('. Switch with /model sonnet for fixes and small features, and keep Opus for big or '
-                       'tricky work.')
+            detail += '. Use /model sonnet for fixes and small features.'
             tips.append(dict(kind='tip', area='models', title='Try Sonnet for small and medium jobs', detail=detail))
 
     # Context: how much each reply re-reads.
@@ -1316,9 +1315,8 @@ def insights(daily, tasks):
         detail = 'Each reply read %s tokens on average in the last 7 days%s.' % (
             _tok(x0), ' (%s the week before)' % _tok(x1) if x1 else '')
         if c0:
-            detail += ' Re-reading that context was %s of Claude spend.' % _pct(reread / c0)
-        detail += (' Start a new session for each task, and /clear when you switch to something unrelated, so '
-                   'replies stop carrying old work.')
+            detail += ' Re-reading it was %s of Claude spend.' % _pct(reread / c0)
+        detail += ' Start a new session, or /clear, for each new task.'
         tips.append(dict(kind='tip', area='context', title='Keep sessions to one task each', detail=detail))
     elif x0 and x1 and x0 < 0.8 * x1:
         trends.append(dict(kind='trend', area='context', title='Leaner sessions this week',
@@ -1331,9 +1329,8 @@ def insights(daily, tasks):
                        for r in w0 if r['model'] in PRICES) / 1e6
     if rebuilds(w0) >= 3 and rebuild_cost >= 1:
         tips.append(dict(kind='tip', area='rebuilds', title='Start fresh after a break instead of resuming', detail=(
-            '%d cache rebuilds cost %s in the last 7 days (%d the week before). Once a session sits idle for an '
-            'hour its cache expires, and the next reply pays to write the whole conversation again. After a long '
-            'break, start a new session with a short summary, or run /compact before you step away.' % (
+            '%d cache rebuilds cost %s in the last 7 days (%d the week before). The cache expires after an idle '
+            'hour, so after a break start a new session, or /compact before you step away.' % (
                 rebuilds(w0), _usd(rebuild_cost), rebuilds(w1)))))
 
     # CI: first-time passes on recent tasks against earlier ones.
@@ -1347,8 +1344,7 @@ def insights(daily, tasks):
             failed = [t['task'] for t in recent if not t['ci_first_pass']]
             tips.append(dict(kind='tip', area='ci', title='CI is failing more often on the first push', detail=(
                 '%d of %d tasks shipped in the last 14 days passed CI first time, against %s before (missed: %s). '
-                'Before pushing, ask Claude to run the same checks CI runs (tests, lint and build) and fix what '
-                'fails.' % (sum(t['ci_first_pass'] for t in recent), len(recent), _pct(pe), ', '.join(failed[:3])))))
+                'Ask Claude to run the CI checks before pushing.' % (sum(t['ci_first_pass'] for t in recent), len(recent), _pct(pe), ', '.join(failed[:3])))))
         elif pr >= pe + 0.1:
             trends.append(dict(kind='trend', area='ci', title='CI passing first time more often', detail=(
                 '%s of tasks shipped in the last 14 days passed CI first time, up from %s before.' % (
@@ -1360,9 +1356,8 @@ def insights(daily, tasks):
     if sum(t['rework'] for t in reworked) >= 5:
         worst = reworked[0]
         tips.append(dict(kind='tip', area='rework', title='Ask for tests on the tricky part up front', detail=(
-            '%d later commits changed files from %d tasks shipped in the last 28 days, most after %s (%d). Follow-up '
-            'fixes usually mean the first pass missed a case, so ask Claude to write a test for the risky part '
-            'before it builds.' % (sum(t['rework'] for t in reworked), len(reworked), worst['task'],
+            '%d later commits changed files from %d tasks shipped in the last 28 days, most after %s (%d). Ask '
+            'Claude to test the risky part before it builds.' % (sum(t['rework'] for t in reworked), len(reworked), worst['task'],
                                    worst['rework']))))
 
     # Tools: a big swing between Claude Code, Codex and Antigravity.

@@ -289,7 +289,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
 @media (max-width: 640px) { .defs { grid-template-columns: minmax(0, 1fr); } }
 .defs dt { font-weight: 600; margin-bottom: 4px; }
 .defs dd { margin: 0; color: var(--ash); line-height: 1.55; }
-.prices { margin-top: 32px; }
+.prices { margin-top: 14px; }
 </style>
 
 <header class="mast">
@@ -330,10 +330,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <canvas id="wave" tabindex="0" role="img" aria-label="Waveform of every model call in the last 30 days: Claude Code above the line, Codex and Antigravity below it"></canvas>
       <div class="wave-tip" id="wave-tip" hidden aria-live="polite"></div>
       <figcaption class="wrap wave-foot">
-        <div class="wave-cap">
-          <p style="margin:0">Every model call in the last 30 days, oldest on the left. Claude Code rises above the line. Codex and Antigravity hang below it, Antigravity in violet whichever model it ran. Height is the number of tokens the call read.</p>
-          <p style="margin:8px 0 0">Each ramp is one session: every reply re-reads everything before it, so it climbs until the session is cleared or compacted. Calls are evenly spaced, so busy days take more room than quiet ones. Point at it, or focus it and use the arrow keys, to read any call.</p>
-        </div>
+        <p class="wave-cap">Every model call in the last 30 days: Claude Code above the line, Codex and Antigravity below. Height is the tokens a call read, so each ramp is one session re-reading more as it grows. Point at it to read a call.</p>
         <ul class="legend" id="wave-legend"></ul>
       </figcaption>
     </figure>
@@ -348,7 +345,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div class="seg" role="group" aria-label="Tasks shown" id="pertask-view"></div>
     </div>
     <div>
-      <p class="chart-note">Each bar is the average cost of the shipped tasks a model led: Claude Code's work at Anthropic's API list rates, plus the Codex and Antigravity work on the same tasks at estimated GPT and Gemini API rates (lighter). The dark tick is the median: when it sits well short of the bar's end, a few expensive tasks are pulling the average up. Models that led fewer than 3 tasks are left out as too few to judge. Point at a bar for details.</p>
+      <p class="chart-note">Claude at list prices, GPT and Gemini (lighter) estimated from API rates. The tick is the median. Models that led fewer than 3 tasks are left out.</p>
       <div class="chart" id="chart-pertask" style="height: 300px" role="img" aria-label="Average cost per shipped task for each lead model, Claude at list prices and GPT and Gemini estimated"></div>
     </div>
   </section>
@@ -357,7 +354,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="tips-h" tabindex="-1">Tips and trends</h2>
-        <p id="tips-note">Ways to work better, worked out from the last few weeks at every refresh.</p>
+        <p id="tips-note">Worked out from your usage at every refresh.</p>
       </div>
     </div>
     <ol class="tips" id="tips-list"></ol>
@@ -372,7 +369,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div class="seg" role="group" aria-label="Period shown" id="tl-view"></div>
     </div>
     <div>
-      <p class="chart-note">A git graph with the AIs as branches. Claude Code's lane sits above main, Codex and Antigravity below. Each coloured line is one task: it forks off main into the lane of the AI working on it, crosses to another lane when a different AI takes over, and joins main again where it merged. Capsules on a line are stretches of work (split wherever a session sat idle for over half an hour); hollow ones are reviewing. Point at a line to see which AIs worked on it and when it merged, or click one to see its relay below. It opens on the latest few days, as many as it takes to show about ten tasks; the buttons show a longer stretch. Drag the slider, or pinch and scroll, to zoom.</p>
+      <p class="chart-note">Each line is a task: it leaves main for the lane of the AI working on it and rejoins main where it merged. Hollow capsules are reviews. Click a line to see its relay below.</p>
       <div class="chart" id="chart-timeline" style="height: 480px" role="img" aria-label="Every Claude Code, Codex and Antigravity session on Sable, with merges to main"></div>
       <ul class="legend" id="tl-legend" style="margin-top: 10px"></ul>
     </div>
@@ -390,7 +387,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="models-h" tabindex="-1">The models</h2>
-        <p>How much each model was used across Claude Code, Codex and Antigravity, Google's agent that runs Gemini.</p>
+        <p>Each model's share of the work across Claude Code, Codex and Antigravity.</p>
       </div>
       <button type="button" class="ins-open" data-ins="models" aria-haspopup="dialog" aria-label="Insight for The models">Insight</button>
     </div>
@@ -426,31 +423,31 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="gem-h" tabindex="-1">Where Gemini is used</h2>
-        <p>Google's Gemini models: which jobs they did, which of them did it, and on which Sable work. Nearly all of it runs inside Antigravity, Google's agent, with a little through the older Gemini CLI.</p>
+        <p>Which Gemini models did which jobs, and on which Sable work. Nearly all of it runs in Antigravity.</p>
       </div>
     </div>
     <div class="spread-body">
       <p class="agy-copy" id="gem-copy"></p>
       <div>
         <p class="chart-title">Tokens per week, by job</p>
-        <p class="chart-note">Planning and carrying out are Antigravity's two-model mode: Gemini 4 Argon plans the work, then Gemini 4 Hydrogen does the steps. Building alone is one Gemini model doing the whole job. Reviewing is agy --print, mostly the critiques Claude Code asks for. From the first busy week; earlier weeks were light. Point at a bar for the numbers.</p>
+        <p class="chart-note">Planning and carrying out are Antigravity's two-model mode: Gemini 4 Argon plans, Gemini 4 Hydrogen does the steps. Reviewing is agy --print.</p>
         <div class="chart" id="chart-gem" style="height: 280px" role="img" aria-label="Gemini tokens per week, split into planning, carrying out, building alone and reviewing"></div>
       </div>
       <div class="pair">
         <div>
           <p class="chart-title">Which Gemini</p>
-          <p class="chart-note">Share of Gemini tokens by model, every kept log.</p>
+          <p class="chart-note">Share of Gemini tokens, all kept logs.</p>
           <div class="roles agy" id="gem-models"></div>
         </div>
         <div>
           <p class="chart-title">On which kind of Sable work</p>
-          <p class="chart-note">Share of Gemini tokens tied to Sable tasks, by the kind of change. The number is how many tasks.</p>
+          <p class="chart-note">Share of Gemini task tokens. Tasks in brackets.</p>
           <div class="roles agy" id="gem-kinds"></div>
         </div>
       </div>
       <div>
         <p class="chart-title">The Sable tasks it worked on most</p>
-        <p class="chart-note">By Gemini tokens. Led means Gemini wrote most of it; helped build means another AI wrote more; reviewed means it critiqued another AI's work.</p>
+        <p class="chart-note">By Gemini tokens. Led: Gemini wrote most of it. Reviewed: it critiqued another AI's work.</p>
         <ol class="gem-tasks" id="gem-tasks"></ol>
       </div>
     </div>
@@ -460,14 +457,14 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="bill-h" tabindex="-1">The bill</h2>
-        <p>Claude cost at API list prices, traced from each model to the kind of token it paid for.</p>
+        <p>Claude cost at API list prices, by model and kind of token.</p>
       </div>
       <button type="button" class="ins-open" data-ins="bill" aria-haspopup="dialog" aria-label="Insight for The bill">Insight</button>
     </div>
     <div class="spread-body">
       <div>
         <p class="chart-title">From model to kind of token</p>
-        <p class="chart-note">Each band is API-equivalent cost. On a Max plan this measures value used, not money spent. Codex has no list price here, so it is left out, as are models under $1.</p>
+        <p class="chart-note">On a Max plan this is value used, not money spent. Codex and models under $1 are left out.</p>
         <div class="chart" id="chart-sankey" style="height: 440px"></div>
       </div>
       <details class="numbers"><summary>The numbers behind it</summary><div class="tbl-wrap"><table class="tbl" id="tbl-sankey"></table></div></details>
@@ -490,17 +487,17 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-body">
       <div>
         <p class="chart-title">Tokens per task, by lead model</p>
-        <p class="chart-note">Each dot is one task, placed by every token Claude Code, Codex and Antigravity spent building it. The axis is logarithmic, so each gridline is ten times the last. Point at a dot to see the task.</p>
+        <p class="chart-note">Each dot is a task, placed by all the tokens spent on it. Log scale: each gridline is ten times the last.</p>
         <div class="chart" id="chart-swarm" style="height: 420px"></div>
       </div>
       <div>
         <p class="chart-title">Models side by side</p>
-        <p class="chart-note">Medians across the tasks each model led. Faded rows led fewer than 5 tasks, too few to compare. Later fixed means a fix commit on main touched the same source files within 14 days, a rough signal rather than a verdict.</p>
+        <p class="chart-note">Medians across the tasks each model led. Faded rows led fewer than 5 tasks.</p>
         <div class="tbl-wrap"><table class="tbl" id="tbl-models"></table></div>
       </div>
       <div id="bytype-block" class="narrower" hidden>
         <p class="chart-title">The same kind of work</p>
-        <p class="chart-note" id="bytype-note">Median Claude cost per task, split by the kind of change. The number in brackets is how many tasks.</p>
+        <p class="chart-note" id="bytype-note">Median Claude cost per task, by kind of change. Tasks in brackets.</p>
         <div class="tbl-wrap"><table class="tbl" id="tbl-bytype"></table></div>
       </div>
     </div>
@@ -510,14 +507,14 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="cycles-h" tabindex="-1">The cycles</h2>
-        <p>How many rounds each task went through before it shipped, for the two models that led the most tasks.</p>
+        <p>Rounds each task took before it shipped, for the two models that led the most.</p>
       </div>
       <button type="button" class="ins-open" data-ins="cycles" aria-haspopup="dialog" aria-label="Insight for The cycles">Insight</button>
     </div>
     <div class="spread-body">
       <div class="narrow">
         <p class="chart-title">Rounds per task, by lead model</p>
-        <p class="chart-note">Averages across the tasks each model led. Each row has its own scale, so compare the two bars within a row.</p>
+        <p class="chart-note">Averages. Each row has its own scale, so compare within a row.</p>
         <ul class="legend" id="cycles-legend"></ul>
         <div class="pairs" id="cycles-pairs"></div>
       </div>
@@ -528,24 +525,24 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="days-h" tabindex="-1">Over time</h2>
-        <p>Claude work per day, the context each reply carried, and what each shipped task cost, week by week.</p>
+        <p>Claude work by day, context per reply, and cost per task by week.</p>
       </div>
       <button type="button" class="ins-open" data-ins="days" aria-haspopup="dialog" aria-label="Insight for Over time">Insight</button>
     </div>
     <div class="spread-body pair">
       <div>
         <p class="chart-title">Claude work per day</p>
-        <p class="chart-note">Logs start on 22 September. Brighter squares cost more, and empty ones had no Claude Code work on this Mac.</p>
+        <p class="chart-note">Brighter squares cost more.</p>
         <div class="chart" id="chart-cal" style="height: 260px"></div>
       </div>
       <div>
         <p class="chart-title">Context per reply</p>
-        <p class="chart-note">Average tokens each main-thread reply read, so lower is cheaper. Gaps are days without Claude Code work.</p>
+        <p class="chart-note">Average tokens each reply read. Lower is cheaper.</p>
         <div class="chart" id="chart-ctx" style="height: 260px"></div>
       </div>
       <div class="pair-wide">
         <p class="chart-title">Cost per shipped task, week by week</p>
-        <p class="chart-note">Each dot is a task, placed in the week it shipped and coloured by its lead model. The bar marks the week's median. The line is the median of the last 10 shipped tasks, updated as each one ships. Weeks start on Monday, and history begins on 22 September, so this fills in as you work.</p>
+        <p class="chart-note">Each dot is a task, in the week it shipped. The bar is the week's median; the line is the median of the last 10 tasks.</p>
         <div class="chart" id="chart-weekly" style="height: 320px"></div>
       </div>
     </div>
@@ -555,7 +552,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="tasks-h" tabindex="-1">Every task</h2>
-        <p>A task is a PR, or work committed straight to main and grouped by the issue it names. The square before each title is its lead model. Failed test runs include the failing tests TDD writes on purpose, and reviews are cross-model critiques from Codex or agy.</p>
+        <p>A PR, or direct commits grouped by the issue they name. The square is the lead model.</p>
       </div>
     </div>
     <div class="spread-body">
@@ -573,19 +570,19 @@ details.numbers[open] summary { margin-bottom: 10px; }
     <div class="spread-head">
       <div>
         <h2 id="long-h" tabindex="-1">The long view</h2>
-        <p>Codex logs go back to June. Claude Code deleted its own logs after 30 days until 21 October, when that was raised to a year, so its history starts in late September and fills in from here.</p>
+        <p>Codex logs go back to June, Claude Code's to 22 September.</p>
       </div>
       <button type="button" class="ins-open" data-ins="long" aria-haspopup="dialog" aria-label="Insight for The long view">Insight</button>
     </div>
     <div class="spread-body pair">
       <div>
         <p class="chart-title">Tokens per month, by tool</p>
-        <p class="chart-note">Every token each tool read or wrote, from the per-call logs. Earlier months show no Claude Code because its logs for them are gone. Claude Code's September starts on the 22nd, and the latest month runs to today. Antigravity includes a few replies from the older Gemini CLI.</p>
+        <p class="chart-note">Every token each tool read or wrote, by month.</p>
         <div class="chart" id="chart-history" style="height: 320px"></div>
       </div>
       <div>
         <p class="chart-title">What Codex spent its tokens on</p>
-        <p class="chart-note">Share of all Codex tokens for this repo. Auto-review is Codex Desktop checking its own actions before running them. Review is the cross-model critique Claude asks for with codex exec.</p>
+        <p class="chart-note">Auto-review is Codex Desktop checking its own actions; review is the critique Claude asks for.</p>
         <div class="roles" id="codex-roles"></div>
       </div>
     </div>
@@ -595,9 +592,10 @@ details.numbers[open] summary { margin-bottom: 10px; }
 <footer class="wrap foot" id="method">
   <div>
     <h2>How it's measured</h2>
-    <p>Built from every Claude Code, Codex, Antigravity and Gemini CLI log on Pritesh's Mac, across every project, plus Claude cloud sessions imported by hand, Sable's git history and GitHub. It refreshes every morning.</p>
+    <p>From every Claude Code, Codex and Antigravity log on this Mac, plus Claude cloud sessions, Sable's git history and GitHub. Refreshed every morning.</p>
   </div>
   <div>
+    <details class="numbers"><summary>Definitions</summary>
     <dl class="defs">
       <div><dt>API-equivalent cost</dt><dd>Tokens priced at Claude API list rates: fresh input, cache writes (1.25 times input for 5 minutes, twice input for an hour), cache reads, and output including thinking.</dd></div>
       <div><dt>Cloud sessions</dt><dd>Claude Code runs in the cloud (claude.ai/code) leave no logs on the Mac. Their token counts are imported by hand from the sessions record, by day, with no task attached. So far: two sessions, 31 Oct to 8 Nov.</dd></div>
@@ -606,15 +604,15 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <div><dt>Lead model</dt><dd>The model that wrote most of a task's output, across Claude Code, Codex and Antigravity work other than reviews.</dd></div>
       <div><dt>Cache rebuild</dt><dd>A reply, not a session's first, that had to write at least 50,000 tokens and half its context to the cache again. Most come after a gap of an hour or more, when the prompt cache has expired; fewer follow a compaction.</dd></div>
       <div><dt>CI first try</dt><dd>The first commit CI ran on for that task passed.</dd></div>
-      <div><dt>Reworked</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
+      <div><dt>Later fixed</dt><dd>A later fix commit on main, within 14 days, touched the same source files. A rough signal.</dd></div>
       <div><dt>Gemini</dt><dd>Antigravity (agy) and the older Gemini CLI.</dd></div>
       <div><dt>Estimated cost</dt><dd>GPT and Gemini work priced at API rates found online, marked "estimate" in the prices below. Only "Cost per shipped task" uses them; elsewhere cost means Claude.</dd></div>
       <div><dt>Call</dt><dd>One model response: a reply in Claude Code, a model turn in Codex, a generation in Antigravity.</dd></div>
     </dl>
-    <div class="prices">
-      <p class="chart-title">Prices used, US dollars per million tokens</p>
+    </details>
+    <details class="numbers prices"><summary>Prices used, US dollars per million tokens</summary>
       <div class="tbl-wrap"><table class="tbl" id="tbl-prices"></table></div>
-    </div>
+    </details>
   </div>
 </footer>
 
@@ -624,7 +622,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       <h2 id="ins-title" tabindex="-1" autofocus>Insights</h2>
       <button type="button" class="ins-open" id="ins-close">Close</button>
     </div>
-    <p class="drawer-note">What the numbers on this page suggest. Each reading is worked out from the data when the page loads, so it stays current after every refresh.</p>
+    <p class="drawer-note">What the numbers suggest, worked out each time the page loads.</p>
     <article class="ins" id="ins-overview">
       <a class="ins-jump" href="#overview">Overview</a>
       <h3 id="ins-head">Waiting for the data.</h3>
@@ -837,11 +835,11 @@ details.numbers[open] summary { margin-bottom: 10px; }
       el('b', null, F.usd0(S.writing)), ' on what the models wrote. Every reply re-reads everything its session carries, so the biggest lever is scope: one task per session, and a fresh start rather than a cold resume of a big session.'
     );
     const lastCall = D.wave.rows[D.wave.rows.length - 1][0];
-    const when = (ms) => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const when = (ms) => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const refreshed = D.meta && Date.parse(D.meta.refreshed);
     $('#scope').replaceChildren(
-      'All Claude Code, Codex and Antigravity usage on this Mac, across every project, with Claude priced at API list rates. ',
-      ...(refreshed ? [el('b', 'stamp', 'Last updated ' + when(refreshed) + '.'), ' '] : []),
+      'Claude Code, Codex and Antigravity on this Mac, with Claude at API list prices. ',
+      ...(refreshed ? [el('b', 'stamp', 'Updated ' + when(refreshed) + '.'), ' '] : []),
       'Latest activity ' + when(lastCall * 1000) + '.'
     );
 
@@ -849,14 +847,14 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const change = S.w1.cost ? S.w0.cost / S.w1.cost - 1 : null;
     odometer($('#fig-total'), F.usd0(S.total));
     $('#fig-total-label').textContent = 'Claude cost since ' + F.day(S.firstDay);
-    $('#fig-total-note').textContent = F.usd0(S.rereading) + ' reading and caching context, ' + F.usd0(S.writing) + ' output and thinking.';
+    $('#fig-total-note').textContent = F.usd0(S.rereading) + ' on context, ' + F.usd0(S.writing) + ' on output.';
     odometer($('#fig-week'), F.usd(S.w0.cost));
-    $('#fig-week-note').textContent = 'At API prices. ' + (change == null ? 'Nothing logged the week before.'
-      : Math.abs(Math.round(change * 100)) + '% ' + (change < 0 ? 'less' : 'more') + ' than the 7 days before.');
+    $('#fig-week-note').textContent = change == null ? 'Nothing the week before.'
+      : Math.abs(Math.round(change * 100)) + '% ' + (change < 0 ? 'less' : 'more') + ' than the week before.';
     odometer($('#fig-task'), F.usd(S.medianTask));
-    $('#fig-task-note').textContent = 'Claude cost across all ' + S.shippedN + ' shipped tasks.';
+    $('#fig-task-note').textContent = 'Claude cost, ' + S.shippedN + ' tasks.';
     odometer($('#fig-ctx'), F.big(S.w0.ctx));
-    $('#fig-ctx-note').textContent = 'Tokens each reply read, so lower is cheaper.' + (S.w1.ctx ? ' ' + F.big(S.w1.ctx) + ' the week before.' : '');
+    $('#fig-ctx-note').textContent = (S.w1.ctx ? F.big(S.w1.ctx) + ' the week before. ' : '') + 'Lower is cheaper.';
 
     // readings for the Insights drawer
     $('#bill-copy').replaceChildren(
@@ -1252,10 +1250,8 @@ details.numbers[open] summary { margin-bottom: 10px; }
         row.append(name, track, el('span', 'share', F.share(m.v / total)), el('span', 'amt', amount(m.v)));
         return row;
       }));
-      $('#mix-note').textContent = (calls
-        ? 'Each bar is one model\'s share of all model calls, coloured by its maker. A call is one response: a reply in Claude Code, a model turn in Codex, a generation in Antigravity.'
-        : 'Each bar is one model\'s share of every token read and written, cache included, coloured by its maker.')
-        + (state.period === 'all' ? ' Claude Code\'s logs mostly start on 22 September and Codex\'s in May, so over all kept logs Claude\'s share is understated.' : '');
+      $('#mix-note').textContent = (calls ? 'Share of all model calls.' : 'Share of every token read and written, cache included.')
+        + (state.period === 'all' ? ' Claude Code\'s logs start later than Codex\'s, so Claude is understated.' : '');
     };
     document.querySelectorAll('#models .seg button').forEach((b) => b.addEventListener('click', () => {
       const key = b.dataset.measure ? 'measure' : 'period';
@@ -1615,18 +1611,15 @@ details.numbers[open] summary { margin-bottom: 10px; }
     function show(key) {
       const [, label, keep] = VIEWS.find((v) => v[0] === key);
       const every = rowsFor(keep);
-      const rows = every.filter((r) => r.ok), few = every.filter((r) => !r.ok);
+      const rows = every.filter((r) => r.ok);
       const top = rows.slice().sort((a, b) => b.n - a.n)[0];
       const lo = rows[0], hi = rows[rows.length - 1];
-      $('#pertask-note').textContent = (top
-        ? label + ': ' + top.name + ' led the most (' + top.n + ') at ' + F.usd(top.avg) + ' a task on average'
+      $('#pertask-note').textContent = top
+        ? top.name + ' led the most (' + top.n + ') at ' + F.usd(top.avg) + ' a task'
           + (rows.length > 1 && lo === top ? ', the cheapest' : rows.length > 1 && hi === top ? ', the dearest' : '') + '.'
-          + (rows.length > 1 && lo !== top ? ' Cheapest was ' + lo.name + ' at ' + F.usd(lo.avg) + '.' : '')
-          + (rows.length > 1 && hi !== top ? ' Dearest was ' + hi.name + ' at ' + F.usd(hi.avg) + '.' : '') + ' '
-        : label + ': too few tasks per model to compare. ')
-        + (few.length ? 'Left out with fewer than ' + MIN + ' tasks: ' + listed(few.map((r) => r.name + ' (' + r.n + ', ' + F.usd(r.avg) + ' average)')) + '. ' : '')
-        + 'GPT and Gemini have no list prices here, so their part of each task is an estimate from published API rates'
-        + ' (see "Prices used" at the foot of the page).';
+          + (rows.length > 1 && lo !== top ? ' Cheapest: ' + lo.name + ', ' + F.usd(lo.avg) + '.' : '')
+          + (rows.length > 1 && hi !== top ? ' Dearest: ' + hi.name + ', ' + F.usd(hi.avg) + '.' : '')
+        : 'Too few tasks per model to compare.';
       $('#chart-pertask').style.height = (rows.length * 46 + 68) + 'px';
       chart.resize();
       chart.setOption(Object.assign(base(), {
@@ -1775,22 +1768,18 @@ details.numbers[open] summary { margin-bottom: 10px; }
     const sableTok = sum(sable.map(tok));
     const led = S.tasks.filter((t) => t.shipped && t.primary_model && groupOf(t.primary_model) === 'agy');
     const reviewed = worked.filter((t) => t.gemini_review_tokens > 0);
-    const feat = kinds.get('feat');
-    const copy = ['Since ' + F.day(S.firstDay) + ', Gemini read and wrote ', el('b', null, F.big(gemRecentTok)), ' tokens, ',
-      el('b', null, F.pct(gemRecentTok / allRecent)), ' of all tokens across the three tools. ',
-      ...(sableTok / gemRecentTok >= 0.995 ? ['Almost all of it was Sable. '] : [el('b', null, F.pct(sableTok / gemRecentTok)), ' of that was Sable. '])];
+    const copy = ['Since ' + F.day(S.firstDay) + ', Gemini used ', el('b', null, F.big(gemRecentTok)), ' tokens, ',
+      el('b', null, F.pct(gemRecentTok / allRecent)), ' of the total',
+      sableTok / gemRecentTok >= 0.995 ? ', almost all on Sable. ' : ', ' + F.pct(sableTok / gemRecentTok) + ' on Sable. '];
     if (worked.length) {
-      copy.push('There it worked on ' + plural(worked.length, 'task', 'tasks') + ': it led ' + plural(led.length, 'shipped task', 'shipped tasks')
-        + ' and reviewed ' + plural(reviewed.length, 'task', 'tasks') + ', and '
-        + F.pct(sum(sable.filter((r) => r.attributed).map(tok)) / (sableTok || 1)) + ' of its Sable tokens are tied to one.'
-        + (feat ? ' Features took ' + F.pct(feat[0] / (sum([...kinds.values()].map((a) => a[0])) || 1)) + ' of the task tokens.' : '') + ' ');
+      copy.push('It led ' + plural(led.length, 'shipped task', 'shipped tasks') + ' and reviewed ' + plural(reviewed.length, 'task', 'tasks') + '. ');
     }
     const two = rows.filter((r) => r.mode === 'plan' || r.mode === 'execute');
     if (two.length) {
       const from = two.reduce((a, r) => (r.day < a ? r.day : a), two[0].day);
       const after = rows.filter((r) => r.day >= from), afterTok = sum(after.map(tok)) || 1;
-      copy.push('Since Antigravity\'s two-model mode first ran on ' + F.dayLong(from) + ', it has taken ',
-        el('b', null, F.pct(sum(two.map(tok)) / afterTok)), ' of Gemini\'s tokens.');
+      copy.push('Antigravity\'s two-model mode has taken ', el('b', null, F.pct(sum(two.map(tok)) / afterTok)),
+        ' of Gemini\'s tokens since it started on ' + F.day(from) + '.');
     }
     $('#gem-copy').replaceChildren(...copy);
     $('#gemini').hidden = false;
@@ -2246,7 +2235,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
       const ps = parts.filter((p) => p.tool === i);
       const n = sum(ps.map((p) => p.n)), rev = sum(ps.map((p) => p.review));
       const verb = rev === n ? 'reviewed' : rev ? 'built and reviewed' : 'built';
-      return TOOLS[i].name + ' ' + verb + ' in ' + ps.length + (ps.length === 1 ? ' stretch' : ' stretches') + ' (' + F.int(n) + ' calls)';
+      return TOOLS[i].name + ' ' + verb + ' (' + plural(n, 'call', 'calls') + ')';
     });
     // Every task seen in the 30 days, latest first, for the relay's picker.
     const lastSeen = new Map();
@@ -2356,16 +2345,15 @@ details.numbers[open] summary { margin-bottom: 10px; }
       const sharedHours = [...hours.values()].filter((v) => v & (v - 1)).length;
       const perTool = TOOLS.map((_, i) => all.filter((s) => s.tool === i).length);
       const toMain = branches.filter((b) => b.merge && b.merge[4] !== 'pr').length;
-      $('#tl-note').textContent = 'Sable work ' + (isoDay(t0) === isoDay(t1) ? 'on ' + F.day(isoDay(t0)) : 'from ' + F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1))) + ': '
-        + F.int(branches.length) + ' tasks, of which ' + toMain + ' merged to main, across '
-        + listed(TOOLS.map((t, i) => perTool[i] ? F.int(perTool[i]) + ' ' + t.name + ' sessions' : null).filter(Boolean))
-        + '. In ' + sharedHours + ' of the ' + hours.size + ' hours with any activity, two or more AIs were at work.';
+      $('#tl-note').textContent = (isoDay(t0) === isoDay(t1) ? F.day(isoDay(t0)) : F.day(isoDay(t0)) + ' to ' + F.day(isoDay(t1))) + ': '
+        + plural(branches.length, 'task', 'tasks') + ', ' + toMain + ' merged to main. Two or more AIs were at work in '
+        + sharedHours + ' of ' + plural(hours.size, 'active hour', 'active hours') + '.';
       $('#tl-legend').replaceChildren(
         ...TOOLS.filter((_, i) => perTool[i]).map((t) => li(swatch(t.color), t.name)),
-        li(dot(null, ASH), 'Hollow: reviewing'),
+        li(dot(null, ASH), 'Reviewing'),
         li(dot(FG), 'Merged to main'),
-        li(dot(null, FG), 'PR merged into another branch'),
-        (() => { const s = swatch(ASH); s.style.opacity = 0.4; return li(s, 'Faint: work not tied to a task'); })()
+        li(dot(null, FG), 'Merged into another branch'),
+        (() => { const s = swatch(ASH); s.style.opacity = 0.4; return li(s, 'Not tied to a task'); })()
       );
 
       node.style.height = Math.round(20 + ROWS * ROW_PX + 84) + 'px';
@@ -2516,11 +2504,10 @@ details.numbers[open] summary { margin-bottom: 10px; }
       pick.value = String(k);
       $('#relay-title').textContent = 'Relay: task started ' + dayOf(parts[0].from) + ', ' + clock(parts[0].from);
       const last = ms_[ms_.length - 1];
-      const merged = !last ? ' It has not merged.'
-        : (last[4] === 'pr' ? ' Its PR merged into another branch on ' : ' It merged to main on ') + dayOf(last[0]) + ' at ' + clock(last[0]) + '.';
-      $('#relay-note').textContent = whoDid(parts).join('. ') + '.' + merged
-        + (later ? ' ' + F.int(later) + ' later calls booked to it after the merge are left out.' : '')
-        + ' Arrows mark each hand-off from one AI to another.';
+      const merged = !last ? ' Not merged yet.'
+        : (last[4] === 'pr' ? ' Merged into another branch ' : ' Merged to main ') + dayOf(last[0]) + ', ' + clock(last[0]) + '.';
+      $('#relay-note').textContent = whoDid(parts).join(', ') + '.' + merged
+        + (later ? ' ' + plural(later, 'later call', 'later calls') + ' left out.' : '');
       $('#chart-relay').style.height = (lanes.length * 46 + 56) + 'px';
       relay.resize();
 
@@ -2687,8 +2674,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
   function tipsList(D) {
     const items = D.insights && D.insights.items;
     if (!items || !items.length) return;
-    $('#tips-note').textContent = 'Ways to work better and trends worth knowing, worked out from your usage at every refresh. Weeks count back from '
-      + F.day(D.insights.through) + ', the last day Claude Code was used.';
+    $('#tips-note').textContent = 'Worked out from your usage up to ' + F.day(D.insights.through) + '.';
     $('#tips-list').replaceChildren(...items.map((i) => {
       const li = el('li', 'tip');
       li.append(el('p', 'tip-kind' + (i.kind === 'tip' ? ' is-tip' : ''), i.kind === 'tip' ? 'Tip' : 'Trend'),
@@ -2711,7 +2697,7 @@ details.numbers[open] summary { margin-bottom: 10px; }
     }
     const rows = [...by].sort((a, b) => (b[1].claude + b[1].codex + b[1].gemini) - (a[1].claude + a[1].codex + a[1].gemini));
     const first = D.daily.reduce((m, r) => (r.day < m ? r.day : m), D.daily[0].day);
-    $('#projects-note').textContent = 'Every call since ' + F.day(first) + ', by the folder it ran in. Tasks, PRs and CI come from Sable\u2019s GitHub, so The work and The cycles cover Sable alone.';
+    $('#projects-note').textContent = 'Every call since ' + F.day(first) + ', by the folder it ran in.';
     const thead = el('thead');
     const hr = el('tr');
     ['Project', 'Calls', 'Claude cost', 'Claude tokens', 'Codex tokens', 'Antigravity tokens'].forEach((h, i) => hr.appendChild(el('th', i ? 'num' : null, h)));
