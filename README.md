@@ -1,7 +1,8 @@
 # Sable AI usage
 
 **Sable AI Ledger** (GitHub Pages): https://pritesh1980.github.io/sable-ai-ledger/
-Rebuilt by `.github/workflows/pages.yml` on every push that touches `ledger/` or `out/`.
+Rebuilt by `.github/workflows/pages.yml` (which runs `build-site.sh`) on every push that
+touches `ledger/`, `out/`, `pwa/` or `build-site.sh`.
 The repo is public (since 2026-11-04), so everything in it, data included, is readable
 by anyone. The old claude.ai artifact (https://claude.ai/artifact/9rkccTsV3vvha7mtggGaTh)
 is no longer updated.
@@ -10,6 +11,22 @@ Source `ledger/index.html`. GSAP 3.15 and ECharts 6.1 from jsDelivr,
 Marcellus and Archivo from Google Fonts, Sable's v2 palette. Loads `data/*.json`
 published beside the page. The earlier Dashboard-type page was retired on
 2026-10-21; its source is kept in `retired/dashboard/`. For raw rows, read `out/*.json`.
+
+## On the iPhone
+
+Open the Pages link in Safari, tap Share, then **Add to Home Screen**. It opens full screen
+as "AI Ledger" with the waveform icon. The files that make this work live in `pwa/`, and only
+the Pages build adds them (the page source stays a fragment):
+
+- `manifest.webmanifest` and the icons. `icon.svg` is the source; re-render the PNGs with
+  `rsvg-convert -w 512 -h 512 pwa/icon.svg -o pwa/icon-512.png` (and 192, and 180 for
+  `apple-touch-icon.png`).
+- `sw.js`, a service worker that keeps the last page and data, so the app still opens with no
+  signal. It always tries the network first, so with signal you get the latest refresh.
+- `app.js` registers it, and reloads the app when it comes back after 30+ minutes in the
+  background (a home-screen app has no reload button, and iOS keeps it alive for days).
+
+To preview the built site locally, run `./build-site.sh` and serve `site/` (it is gitignored).
 
 `ingest.py` reads every AI log on this Mac, for every project, and writes one JSON file
 per dataset to `out/`. Standard library only, Python 3.8+. Each call is booked to the

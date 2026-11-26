@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Home-screen icon: the page's waveform as seven bars on the page's ink, the tallest in its spark green.
+       Everything sits inside the central 80% circle, so it survives a maskable (round) crop too. -->
+  <rect width="512" height="512" fill="#131110"/>
+  <g fill="#efe9dc">
+    <rect x="98"  y="208" width="28" height="96"  rx="14"/>
+    <rect x="146" y="172" width="28" height="168" rx="14"/>
+    <rect x="194" y="196" width="28" height="120" rx="14"/>
+    <rect x="242" y="132" width="28" height="248" rx="14" fill="#c8ff3a"/>
+    <rect x="290" y="180" width="28" height="152" rx="14"/>
+    <rect x="338" y="156" width="28" height="200" rx="14"/>
+    <rect x="386" y="212" width="28" height="88"  rx="14"/>
+  </g>
+</svg>

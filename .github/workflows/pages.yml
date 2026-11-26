@@ -3,7 +3,7 @@ name: Deploy ledger to Pages
 on:
   push:
     branches: [main]
-    paths: ["ledger/**", "out/**", ".github/workflows/pages.yml"]
+    paths: ["ledger/**", "out/**", "pwa/**", "build-site.sh", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -23,18 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ledger/index.html is a fragment: claude.ai adds the document skeleton
-      # when it publishes. Add one here too, so the source stays as it is.
+      # Wraps the ledger/index.html fragment in a document, copies the data and adds the home-screen app files.
       - name: Build site
-        run: |
-          mkdir -p site/data
-          {
-            printf '<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
-            printf '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            cat ledger/index.html
-          } > site/index.html
-          cp out/daily.json out/tasks.json out/prices.json out/waveform.json out/meta.json out/insights.json site/data/
-          touch site/.nojekyll
+        run: sh build-site.sh
 
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
