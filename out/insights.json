@@ -1,47 +1,47 @@
 {
- "through": "2026-11-25",
+ "through": "2026-11-26",
  "items": [
   {
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 191k tokens on average in the last 7 days (145k the week before). Re-reading it was 42% of Claude spend. Start a new session, or /clear, for each new task."
+   "detail": "Each reply read 203k tokens on average in the last 7 days (143k the week before). Re-reading it was 46% of Claude spend. Start a new session, or /clear, for each new task."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "18 cache rebuilds cost $20 in the last 7 days (18 the week before). The cache expires after an idle hour, so after a break start a new session, or /compact before you step away."
+   "detail": "16 cache rebuilds cost $18 in the last 7 days (19 the week before). The cache expires after an idle hour, so after a break start a new session, or /compact before you step away."
   },
   {
    "kind": "tip",
    "area": "rework",
    "title": "Ask for tests on the tricky part up front",
-   "detail": "62 later commits changed files from 25 tasks shipped in the last 28 days, most after PR #166 (8). Ask Claude to test the risky part before it builds."
+   "detail": "32 later commits changed files from 20 tasks shipped in the last 28 days, most after PR #200 (4). Ask Claude to test the risky part before it builds."
   },
   {
    "kind": "trend",
    "area": "spend",
-   "title": "Claude spend down 17% on the week before",
-   "detail": "$96 in the last 7 days, against $116. Busiest day: Tue 24 Nov, at $46."
+   "title": "Claude spend about level with the week before",
+   "detail": "$111 in the last 7 days, against $116. Busiest day: Tue 24 Nov, at $46."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Codex use up 4.0x",
-   "detail": "680 calls in the last 7 days, against 168 the week before."
+   "title": "Codex use up 4.2x",
+   "detail": "714 calls in the last 7 days, against 168 the week before."
   },
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Antigravity use up 3.5x",
-   "detail": "751 calls in the last 7 days, against 216 the week before."
+   "title": "Antigravity use up 3.6x",
+   "detail": "779 calls in the last 7 days, against 216 the week before."
   },
   {
    "kind": "trend",
    "area": "tasks",
-   "title": "Biggest task this week: PR #249",
-   "detail": "\"feat(search): search your photos by words, on-device (#186)\" cost $8.96 over 126 replies, about 2 times your median task ($3.91)."
+   "title": "Biggest task this week: Issue #209",
+   "detail": "\"Radar: prepare an offline show pack with verified photo readiness\" cost $11 over 114 replies, about 3 times your median task ($3.96)."
   }
  ]
 }
