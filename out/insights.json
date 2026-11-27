@@ -5,25 +5,25 @@
    "kind": "tip",
    "area": "context",
    "title": "Keep sessions to one task each",
-   "detail": "Each reply read 203k tokens on average in the last 7 days (143k the week before). Re-reading it was 46% of Claude spend. Start a new session, or /clear, for each new task."
+   "detail": "Each reply read 198k tokens on average in the last 7 days (143k the week before). Re-reading it was 45% of Claude spend. Start a new session, or /clear, for each new task."
   },
   {
    "kind": "tip",
    "area": "rebuilds",
    "title": "Start fresh after a break instead of resuming",
-   "detail": "16 cache rebuilds cost $18 in the last 7 days (19 the week before). The cache expires after an idle hour, so after a break start a new session, or /compact before you step away."
+   "detail": "18 cache rebuilds cost $20 in the last 7 days (19 the week before). The cache expires after an idle hour, so after a break start a new session, or /compact before you step away."
   },
   {
    "kind": "tip",
    "area": "rework",
    "title": "Ask for tests on the tricky part up front",
-   "detail": "32 later commits changed files from 20 tasks shipped in the last 28 days, most after PR #200 (4). Ask Claude to test the risky part before it builds."
+   "detail": "36 later commits changed files from 21 tasks shipped in the last 28 days, most after PR #200 (4). Ask Claude to test the risky part before it builds."
   },
   {
    "kind": "trend",
    "area": "spend",
    "title": "Claude spend about level with the week before",
-   "detail": "$111 in the last 7 days, against $116. Busiest day: Tue 24 Nov, at $46."
+   "detail": "$118 in the last 7 days, against $116. Busiest day: Tue 24 Nov, at $46."
   },
   {
    "kind": "trend",
@@ -34,14 +34,14 @@
   {
    "kind": "trend",
    "area": "tools",
-   "title": "Antigravity use up 3.6x",
-   "detail": "779 calls in the last 7 days, against 216 the week before."
+   "title": "Antigravity use up 3.9x",
+   "detail": "841 calls in the last 7 days, against 216 the week before."
   },
   {
    "kind": "trend",
    "area": "tasks",
-   "title": "Biggest task this week: Issue #209",
-   "detail": "\"Radar: prepare an offline show pack with verified photo readiness\" cost $11 over 114 replies, about 3 times your median task ($3.96)."
+   "title": "Biggest task this week: PR #259",
+   "detail": "\"feat(radar): prepare an offline show pack with verified photo readiness\" cost $13 over 138 replies, about 3 times your median task ($3.91)."
   }
  ]
 }
